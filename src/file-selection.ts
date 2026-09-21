@@ -68,6 +68,7 @@ export async function resolveFileSelection<T extends FileSelectionConfiguration>
 		options.signal?.throwIfAborted();
 		const configuration = node.section?.value;
 		if (!configuration) continue;
+		const sessionRoot = node.rootPath === options.graph.rootPath;
 		const excludes = [...DEFAULT_PRELOAD_EXCLUDES, ...(options.excludes ?? []), ...(configuration.excludes ?? [])].map(
 			normalizePattern,
 		);
@@ -81,7 +82,8 @@ export async function resolveFileSelection<T extends FileSelectionConfiguration>
 				cwd: node.rootPath,
 				dot: true,
 				followSymbolicLinks: false,
-				gitignore: true,
+				gitignore: sessionRoot,
+				ignoreFiles: sessionRoot ? undefined : "**/.gitignore",
 				ignore: excludes,
 				onlyFiles: true,
 				unique: true,

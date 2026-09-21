@@ -229,6 +229,7 @@ test("selects explicit full and signature files across an ignored meta repositor
 	const nested = join(child, "nested");
 	const childAlias = join(root, "tool-alias");
 	await Promise.all([
+		mkdir(join(root, ".git"), { recursive: true }),
 		mkdir(join(child, "src"), { recursive: true }),
 		mkdir(join(child, "types"), { recursive: true }),
 		mkdir(nested, { recursive: true }),
