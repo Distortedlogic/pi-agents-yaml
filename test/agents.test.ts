@@ -99,7 +99,6 @@ test("discovers ordered physical sources without reading an untrusted project", 
 		createSourceRoot(currentProjectMirror, "pi-current-project"),
 	]);
 	await Promise.all([
-		writeFile(join(projectRoot, "AGENTS.yml"), "selected:\n  enabled: true\n"),
 		writeFile(join(projectRoot, "package.json"), '{"name":"pi-current-project"}\n'),
 		symlink(userRoot, userAlias, "dir"),
 	]);
@@ -146,6 +145,7 @@ test("discovers ordered physical sources without reading an untrusted project", 
 		trusted.some(({ rootPath }) => rootPath === currentProjectMirrorPath),
 		false,
 	);
+	assert.equal(trusted.at(-1)?.hasAgentsFile, false);
 });
 
 test("cancels source discovery before settings or project sources are read", () => {

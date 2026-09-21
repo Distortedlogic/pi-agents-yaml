@@ -10,6 +10,7 @@ export type AgentsSourceOrigin = "package" | "project";
 export interface AgentsSourceRoot {
 	readonly rootPath: string;
 	readonly sourcePath: string;
+	readonly hasAgentsFile: boolean;
 	readonly scope: AgentsSourceScope;
 	readonly origin: AgentsSourceOrigin;
 }
@@ -42,11 +43,10 @@ function physicalRoot(rootPath: string): string {
 	}
 }
 
-function source(rootPath: string, scope: AgentsSourceScope, origin: AgentsSourceOrigin): AgentsSourceRoot | undefined {
-	const unresolvedRoot = resolve(rootPath);
-	if (!existsSync(join(unresolvedRoot, AGENTS_FILE_NAME))) return undefined;
-	const root = physicalRoot(unresolvedRoot);
-	return Object.freeze({ rootPath: root, sourcePath: join(root, AGENTS_FILE_NAME), scope, origin });
+function source(rootPath: string, scope: AgentsSourceScope, origin: AgentsSourceOrigin): AgentsSourceRoot {
+	const root = physicalRoot(rootPath);
+	const sourcePath = join(root, AGENTS_FILE_NAME);
+	return Object.freeze({ rootPath: root, sourcePath, hasAgentsFile: existsSync(sourcePath), scope, origin });
 }
 
 export function discoverAgentsSources(options: DiscoverAgentsSourceRootsOptions): readonly AgentsSourceRoot[] {
