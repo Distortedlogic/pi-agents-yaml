@@ -1,0 +1,4 @@
+includes:
+  - "/home/entropybender/3rd/pi/packages/coding-agent/docs/{extensions,packages,tui,rpc,session-format,custom-provider,environment-variables}.md"
+  - "/home/entropybender/3rd/pi/packages/coding-agent/src/core/extensions/**/*.ts"
+  - "/home/entropybender/3rd/pi/packages/coding-agent/src/core/{agent-session,messages,session-manager}.ts"

@@ -1,14 +1,16 @@
 import { realpath } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Value } from "typebox/value";
 import { loadAgentsDocument } from "./document.ts";
 import { type PiPreloadConfiguration, PiPreloadConfigurationSchema } from "./preload-schema.ts";
 
 const PRESET_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MERGED_FIELDS = ["contexts", "excludes", "extends", "includes", "signatures"] as const;
+const PRESET_DIRECTORY = fileURLToPath(new URL("../presets", import.meta.url));
 
 export interface ResolvePreloadPresetsOptions {
-	readonly presetDirectory: string;
+	readonly presetDirectory?: string;
 	readonly signal?: AbortSignal;
 }
 
@@ -47,18 +49,33 @@ export async function resolvePreloadPresets(
 	const requestedPresets = configuration.presets ?? [];
 	if (requestedPresets.length === 0) return mergePreloadConfigurations([configuration]);
 	options.signal?.throwIfAborted();
-	const presetRoot = await realpath(resolve(options.presetDirectory));
+	const packagePresetRoot = await realpath(resolve(PRESET_DIRECTORY));
+	const presetRoots = [packagePresetRoot];
+	if (options.presetDirectory) {
+		const additionalPresetRoot = await realpath(resolve(options.presetDirectory));
+		if (additionalPresetRoot !== packagePresetRoot) presetRoots.push(additionalPresetRoot);
+	}
 	const cache = new Map<string, PiPreloadConfiguration>();
 	const active = new Set<string>();
 
 	const loadPreset = async (name: string, declaredBy: string): Promise<PiPreloadConfiguration> => {
 		options.signal?.throwIfAborted();
 		if (!PRESET_NAME_PATTERN.test(name)) throw new Error(`Invalid pi-preload preset name in ${declaredBy}: ${name}`);
-		const sourcePath = await realpath(resolve(presetRoot, `${name}.yml`));
-		const relativePath = relative(presetRoot, sourcePath);
-		if (relativePath === ".." || relativePath.startsWith(`..${sep}`)) {
-			throw new Error(`Pi-preload preset ${name} resolves outside ${presetRoot}.`);
+		let sourcePath: string | undefined;
+		for (const presetRoot of presetRoots) {
+			try {
+				const candidatePath = await realpath(resolve(presetRoot, `${name}.yml`));
+				const relativePath = relative(presetRoot, candidatePath);
+				if (relativePath === ".." || relativePath.startsWith(`..${sep}`)) {
+					throw new Error(`Pi-preload preset ${name} resolves outside ${presetRoot}.`);
+				}
+				sourcePath = candidatePath;
+				break;
+			} catch (error) {
+				if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+			}
 		}
+		if (!sourcePath) throw new Error(`Could not resolve pi-preload preset ${name} declared by ${declaredBy}.`);
 		const cached = cache.get(sourcePath);
 		if (cached) return cached;
 		if (active.has(sourcePath)) throw new Error(`Circular pi-preload preset in ${declaredBy}: ${sourcePath}`);
@@ -80,6 +97,6 @@ export async function resolvePreloadPresets(
 	};
 
 	const presets: PiPreloadConfiguration[] = [];
-	for (const name of requestedPresets) presets.push(await loadPreset(name, options.presetDirectory));
+	for (const name of requestedPresets) presets.push(await loadPreset(name, PRESET_DIRECTORY));
 	return mergePreloadConfigurations([...presets, withoutPresetReferences(configuration)]);
 }
