@@ -28,7 +28,7 @@
 		"check": "npm run typecheck && npm run lint && npm test",
 		"format": "biome check --write .",
 		"lint": "biome check .",
-		"test": "node --experimental-strip-types --test test/*.test.ts",
+		"test": "node --import tsx --test test/*.test.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -43,6 +43,7 @@
 		"@biomejs/biome": "2.5.14",
 		"@earendil-works/pi-coding-agent": "0.85.1",
 		"@types/node": "22.20.3",
+		"tsx": "4.23.15",
 		"typescript": "7.0.2"
 	}
 }
