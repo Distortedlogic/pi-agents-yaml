@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { CONFIG_DIR_NAME, DefaultPackageManager, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { DefaultPackageManager, getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { AGENTS_FILE_NAME } from "./document.ts";
 
 export type AgentsSourceScope = "owned" | "user" | "project";
@@ -52,7 +51,7 @@ function source(rootPath: string, scope: AgentsSourceScope, origin: AgentsSource
 export function discoverAgentsSources(options: DiscoverAgentsSourceRootsOptions): readonly AgentsSourceRoot[] {
 	options.signal?.throwIfAborted();
 	const cwd = resolve(options.cwd);
-	const agentDirectory = resolve(options.agentDirectory ?? join(homedir(), CONFIG_DIR_NAME, "agent"));
+	const agentDirectory = resolve(options.agentDirectory ?? getAgentDir());
 	const settingsCwd = options.projectTrusted ? cwd : agentDirectory;
 	const settingsManager = SettingsManager.create(settingsCwd, agentDirectory);
 	const packageManager = new DefaultPackageManager({ cwd: settingsCwd, agentDir: agentDirectory, settingsManager });
