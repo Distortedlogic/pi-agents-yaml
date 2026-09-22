@@ -1,6 +1,6 @@
 ---
 name: agents-yml-authoring
-description: Use when creating, changing, or auditing a repository or Pi package AGENTS.yml, including pi-preload, pi-prompts, and pi-modes. Use separate guidance for AGENTS.md and extension implementation code.
+description: Use when creating, changing, or auditing AGENTS.yml in a project or Pi package, including pi-preload, pi-prompts, and pi-modes.
 ---
 
 # AGENTS.yml authoring
@@ -9,8 +9,8 @@ description: Use when creating, changing, or auditing a repository or Pi package
 
 1. Confirm the project or package root and source scope.
 2. Read `AGENTS.yml`; create it only when it is missing. Preserve unrelated top-level sections and their order.
-3. Change only the requested sections with the rules below.
-4. Run `/reload` and check the requested feature.
+
+Pi applies `AGENTS.yml` changes after `/reload`.
 
 ## Sources and precedence
 
@@ -18,13 +18,18 @@ Extensions read sections from these sources in order:
 
 1. the owned package root;
 2. user packages;
-3. project packages and the project root, only when Pi trusts the project.
+3. project packages;
+4. the project root.
+
+Pi reads project packages and the project root only when it trusts the project.
 
 Each section type applies its own rule across sources:
 
 - `pi-modes`: a later source replaces a mode with the same name.
 - `pi-prompts`: a duplicate prompt name in two sources is an error.
 - `pi-preload`: patterns merge. Preset patterns come before the current project patterns, and extended project scopes come before the scope that names them.
+
+The authoritative schemas are `PiPreloadConfigurationSchema`, `pi-prompts/agents.ts`, and `pi-modes/agents.ts`.
 
 ## pi-preload section
 
@@ -35,37 +40,21 @@ Each section type applies its own rule across sources:
 - `signatures` selects source with callable bodies folded. It supports `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`, `.py`, `.rs`, and `.go`.
 - `excludes` removes paths from the merged file selection.
 - `contexts` takes packaged context sources that generate Markdown from the project. `dioxus` is the only source.
-- `presets` loads `pi-extension` or `dioxus-rust` before the local configuration.
+- `presets` accepts `pi-extension` and `dioxus-rust`.
 
 ### Selection
 
 Name root files explicitly. Use a directory and suffix glob for source, so a renamed file stays matched. Use only the suffixes that the directory holds.
 
-For a repository from the Copier template, start from `pi-extensions/template/AGENTS.yml`.
-
 If `includes` and `signatures` select the same resolved file, `includes` wins and loads the complete file.
 
-```yaml
-pi-preload:
-  presets:
-    - pi-extension
-  extends:
-    - ../shared
-  includes:
-    - package.json
-  signatures:
-    - src/**/*.ts
-  excludes:
-    - src/generated/**
-```
-
-Do not select lock files, secrets, generated or vendored directories, binary assets, or large fixtures. The extension also ignores Git-ignored files, lock files, `AGENTS.yml`, `PRELOAD.md`, and `TREE.txt`. Do not use that safeguard to justify a wide glob.
+Use narrow globs that exclude secrets, generated or vendored content, binaries, lock files, and large fixtures.
 
 ### Limits
 
-`pi-preload/src/index.ts` sets 1,000 unique files, 256 KiB for each original file and emitted block, and 2 MiB for all emitted context. A full-mode file must be UTF-8 text unless an explicit path selects an image. A signature-mode file must be supported UTF-8 source and cannot be binary. Original source bytes and emitted context bytes are counted separately.
+`pi-preload/src/index.ts` sets limits of 1,000 files, 256 KiB for each source or emitted block, and 2 MiB for emitted context. A full-mode file must be UTF-8 text unless an explicit path selects an image. A signature-mode file must be supported UTF-8 source and cannot be binary.
 
-The extension collects at session start and writes `PRELOAD.md`. After `/reload`, inspect `PRELOAD.md` and confirm that it contains only the intended context.
+After a preload selection change, inspect `PRELOAD.md` after `/reload`.
 
 ## pi-prompts section
 
@@ -87,16 +76,6 @@ pi-prompts:
     release: [review, summarize]
 ```
 
-After `/reload`, cycle the prompt catalog and confirm the requested prompts and chains.
-
 ## pi-modes section
 
-The `pi-modes` schema maps a mode name to the mode text. A mode name must contain a non-whitespace character. The extension appends the mode text to the user input after a ` --- ` separator, so do not start the text with that separator. When no source declares a mode, only the default `exec` mode exists.
-
-```yaml
-pi-modes:
-  review: Review the changes.
-  plan: Plan the changes.
-```
-
-After `/reload`, select or cycle the requested mode and confirm its text.
+The `pi-modes` schema maps a mode name directly to its text. The extension adds a ` --- ` separator before that text, so omit the separator from the stored value.
