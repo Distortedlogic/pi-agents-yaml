@@ -12,12 +12,6 @@ description: Use when creating, changing, or auditing a repository or Pi package
 3. Change only the requested sections with the rules below.
 4. Run `/reload` and check the requested feature.
 
-## Document baseline
-
-- The file name is `AGENTS.yml`. It lives at a project root or at a package root next to `package.json`.
-- The file holds one YAML mapping. Duplicate keys are a parse error.
-- Each extension owns one top-level section. Edit only the section you mean to change. Preserve unrelated top-level keys and their order.
-
 ## Sources and precedence
 
 Extensions read sections from these sources in order:
@@ -39,10 +33,9 @@ Each section type applies its own rule across sources:
 - `extends` takes paths to other project directories.
 - `includes` selects complete file content.
 - `signatures` selects source with callable bodies folded. It supports `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`, `.py`, `.rs`, and `.go`.
+- `excludes` removes paths from the merged file selection.
 - `contexts` takes packaged context sources that generate Markdown from the project. `dioxus` is the only source.
-- Presets are `pi-extension` and `dioxus-rust`.
-
-A preset cannot use `extends`, and each preset pattern must be absolute.
+- `presets` loads `pi-extension` or `dioxus-rust` before the local configuration.
 
 ### Selection
 
@@ -94,12 +87,16 @@ pi-prompts:
     release: [review, summarize]
 ```
 
+After `/reload`, cycle the prompt catalog and confirm the requested prompts and chains.
+
 ## pi-modes section
 
-The `pi-modes` schema maps a mode name to the mode text. A mode name cannot contain whitespace. The extension appends the mode text to the user input after a ` --- ` separator, so do not start the text with that separator. When no source declares a mode, only the default `exec` mode exists.
+The `pi-modes` schema maps a mode name to the mode text. A mode name must contain a non-whitespace character. The extension appends the mode text to the user input after a ` --- ` separator, so do not start the text with that separator. When no source declares a mode, only the default `exec` mode exists.
 
 ```yaml
 pi-modes:
   review: Review the changes.
   plan: Plan the changes.
 ```
+
+After `/reload`, select or cycle the requested mode and confirm its text.
