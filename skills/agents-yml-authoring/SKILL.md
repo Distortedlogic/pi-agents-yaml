@@ -1,9 +1,20 @@
 ---
 name: agents-yml-authoring
-description: Use when creating, changing, or auditing an AGENTS.yml file or its pi-preload, pi-prompts, or pi-modes sections in a repository or Pi package.
+description: Use when creating, changing, or auditing a repository or Pi package AGENTS.yml, including pi-preload, pi-prompts, and pi-modes. Use separate guidance for AGENTS.md and extension implementation code.
 ---
 
 # AGENTS.yml authoring
+
+Use this skill to make one deliberate `AGENTS.yml` change while you preserve other extension-owned sections.
+
+## Procedure
+
+1. Identify the exact project or package root and the intended source scope. Ask for the scope when it is not clear.
+2. Read the existing `AGENTS.yml`. Create it only when it is missing.
+3. Keep unrelated top-level sections and their order. Change only the requested section or sections.
+4. Apply the source precedence and section rules below.
+5. Validate the complete document and each changed section.
+6. Run `/reload`, then perform the section-specific completion checks.
 
 ## Document baseline
 
@@ -27,7 +38,7 @@ Each section type applies its own rule across sources:
 
 ## pi-preload section
 
-`pi-preload/agents.ts` accepts only `presets`, `extends`, `includes`, `signatures`, `excludes`, and `contexts`.
+`PiPreloadConfigurationSchema` in `pi-agents-yaml` accepts only `presets`, `extends`, `includes`, `signatures`, `excludes`, and `contexts`.
 
 - `extends` takes paths to other project directories.
 - `includes` selects complete file content.
@@ -65,11 +76,11 @@ Do not select lock files, secrets, generated or vendored directories, binary ass
 
 `pi-preload/src/index.ts` sets 1,000 unique files, 256 KiB for each original file and emitted block, and 2 MiB for all emitted context. A full-mode file must be UTF-8 text unless an explicit path selects an image. A signature-mode file must be supported UTF-8 source and cannot be binary. Original source bytes and emitted context bytes are counted separately.
 
-The extension collects at session start and writes `PRELOAD.md`. The current session shows no result. Check `PRELOAD.md` at the next session.
+The extension collects at session start and writes `PRELOAD.md`. After `/reload`, inspect `PRELOAD.md` and confirm that it contains only the intended context.
 
 ## pi-prompts section
 
-`pi-prompts/agents.ts` accepts only `prompts` and `chains`. `prompts` is required when the section exists.
+The `pi-prompts` schema accepts only `prompts` and `chains`. `prompts` is required when the section exists.
 
 - `prompts` maps a prompt name to an object with a required `body` and an optional `description`.
 - `chains` maps a chain name to a list of prompt names. Each member must reference a declared prompt.
@@ -81,16 +92,28 @@ pi-prompts:
     review:
       description: Review the changes.
       body: Review the changes.
+    summarize:
+      body: Summarize the result.
   chains:
     release: [review, summarize]
 ```
 
 ## pi-modes section
 
-`pi-modes/agents.ts` maps a mode name to the mode text. A mode name cannot contain whitespace. The extension appends the mode text to the user input after a ` --- ` separator, so do not start the text with that separator. When no source declares a mode, only the default `exec` mode exists.
+The `pi-modes` schema maps a mode name to the mode text. A mode name cannot contain whitespace. The extension appends the mode text to the user input after a ` --- ` separator, so do not start the text with that separator. When no source declares a mode, only the default `exec` mode exists.
 
 ```yaml
 pi-modes:
   review: Review the changes.
   plan: Plan the changes.
 ```
+
+## Completion checks
+
+- The complete file is one YAML mapping with unique keys.
+- Each changed section has only its accepted keys and value types.
+- Unrelated top-level sections are unchanged.
+- Every prompt-chain member resolves to one declared prompt, and prompt names are unique across YAML and `.prompts/` sources.
+- Every preload `extends` path resolves without a cycle. Selected files stay within the stated limits.
+- `/reload` reports no configuration error.
+- For `pi-preload`, inspect `PRELOAD.md`. For `pi-prompts`, cycle the prompt catalog. For `pi-modes`, select or cycle the configured mode.
