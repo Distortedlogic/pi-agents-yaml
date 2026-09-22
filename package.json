@@ -1,6 +1,6 @@
 {
 	"name": "pi-agents-yaml",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"private": true,
 	"description": "Shared AGENTS.yml loading, validation, discovery, graph resolution, and file selection for Pi packages.",
 	"type": "module",
@@ -17,6 +17,7 @@
 	"exports": "./src/index.ts",
 	"files": [
 		"presets",
+		"schemas",
 		"src",
 		"skills"
 	],
@@ -29,6 +30,7 @@
 		"check": "npm run typecheck && npm run lint && npm test",
 		"format": "biome check --write .",
 		"lint": "biome check .",
+		"schema": "node --import tsx scripts/generate-agents-schema.ts",
 		"test": "node --import tsx --test test/*.test.ts",
 		"typecheck": "tsc --noEmit"
 	},

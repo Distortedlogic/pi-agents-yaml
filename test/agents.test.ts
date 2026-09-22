@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { CONFIG_DIR_NAME, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { Value } from "typebox/value";
 import {
+	AgentsConfigurationSchema,
 	DEFAULT_PRELOAD_EXCLUDES,
 	DEFAULT_TREE_EXCLUDES,
 	discoverAgentsSources,
@@ -229,8 +231,55 @@ test("uses exact package excludes before configured excludes", async (t) => {
 
 	const preload = await resolveFileSelection({ graph: await resolvePiPreloadGraph({ rootPath: directory }) });
 	const tree = await resolveFileSelection({ graph: await resolvePiTreeGraph({ rootPath: directory }) });
-	assert.deepEqual(preload.map((file) => file.displayPath), ["visible.txt"]);
-	assert.deepEqual(tree.map((file) => file.displayPath), ["package-lock.json", "visible.txt"]);
+	assert.deepEqual(
+		preload.map((file) => file.displayPath),
+		["visible.txt"],
+	);
+	assert.deepEqual(
+		tree.map((file) => file.displayPath),
+		["package-lock.json", "visible.txt"],
+	);
+});
+
+test("resolves generated project configuration without a pi-tree section", async (t) => {
+	const directory = await temporaryDirectory(t);
+	await writeFile(
+		join(directory, "AGENTS.yml"),
+		[
+			"pi-preload:",
+			"  presets: [pi-extension]",
+			"  includes:",
+			"    - src/**/*.ts",
+			"    - test/**/*.ts",
+			"    - package.json",
+			"",
+		].join("\n"),
+	);
+
+	const graph = await resolvePiTreeGraph({ rootPath: directory });
+	assert.deepEqual(graph.nodes[0]?.section.value, { excludes: [], extends: [], includes: ["**/*"] });
+});
+
+test("keeps the generated AGENTS schema aligned with owned section contracts", async () => {
+	const generated = JSON.parse(
+		await readFile(new URL("../schemas/AGENTS.schema.json", import.meta.url), "utf8"),
+	) as Record<string, unknown>;
+	const { $schema, ...documentSchema } = generated;
+	assert.equal($schema, "https://json-schema.org/draft/2020-12/schema");
+	assert.deepEqual(documentSchema, JSON.parse(JSON.stringify(AgentsConfigurationSchema)));
+
+	for (const value of [
+		{},
+		{ "pi-preload": {} },
+		{ "pi-tree": {} },
+		{ "pi-preload": { includes: [] }, "pi-tree": { includes: [] } },
+		{ "pi-preload": { signatures: ["src/**/*.ts"] }, "pi-tree": { excludes: ["generated/**"] } },
+	]) {
+		assert.equal(Value.Check(AgentsConfigurationSchema, value), true);
+	}
+	for (const preloadOnlyField of ["contexts", "presets", "signatures"]) {
+		assert.equal(Value.Check(AgentsConfigurationSchema, { "pi-tree": { [preloadOnlyField]: [] } }), false);
+	}
 });
 
 test("preserves cancellation for document loading", async (t) => {

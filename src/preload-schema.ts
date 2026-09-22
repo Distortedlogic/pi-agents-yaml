@@ -57,9 +57,7 @@ export const PI_TREE_CONFIGURATION_DEFAULTS: ResolvedPiTreeConfiguration = Objec
 	includes: Object.freeze(["**/*"]),
 });
 
-export function resolvePiPreloadConfiguration(
-	configuration?: PiPreloadConfiguration,
-): ResolvedPiPreloadConfiguration {
+export function resolvePiPreloadConfiguration(configuration?: PiPreloadConfiguration): ResolvedPiPreloadConfiguration {
 	return Object.freeze({
 		contexts: Object.freeze([...(configuration?.contexts ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.contexts)]),
 		excludes: Object.freeze([...(configuration?.excludes ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.excludes)]),

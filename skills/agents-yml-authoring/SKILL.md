@@ -1,6 +1,6 @@
 ---
 name: agents-yml-authoring
-description: Use when creating, changing, or auditing AGENTS.yml in a project or Pi package, including pi-preload, pi-prompts, and pi-modes.
+description: Use when creating, changing, or auditing AGENTS.yml in a project or Pi package, including pi-preload, pi-tree, pi-prompts, and pi-modes.
 ---
 
 # AGENTS.yml authoring
@@ -29,7 +29,18 @@ Each section type applies its own rule across sources:
 - `pi-prompts`: a duplicate prompt name in two sources is an error.
 - `pi-preload`: patterns merge. Preset patterns come before the current project patterns, and extended project scopes come before the scope that names them.
 
-The authoritative schemas are `PiPreloadConfigurationSchema`, `pi-prompts/agents.ts`, and `pi-modes/agents.ts`.
+The authoritative schemas are `PiPreloadConfigurationSchema`, `PiTreeConfigurationSchema`, `pi-prompts/agents.ts`, and `pi-modes/agents.ts`. The generated `schemas/AGENTS.schema.json` composes the package-owned preload and tree schemas.
+
+## Shared preload and tree rules
+
+- A missing or empty `pi-preload` section selects no preload content.
+- A missing or empty `pi-tree` section uses `includes: ["**/*"]`.
+- An explicit `pi-tree.includes` replaces that default. Use `includes: []` to select no tree paths.
+- Package excludes apply first. Configured excludes apply after them and win over every include or signature match.
+- Package excludes keep `.git`, every `AGENTS.yml`, `.tasks`, generated `PRELOAD.md` and `TREE.txt`, and their owned generated paths out of selection. Preload also excludes dependency lock files. Tree keeps lock files, tests, manifests, and tracked configuration unless a project excludes them.
+- The session root follows its local `.gitignore`. Each explicit extended root follows its own local `.gitignore`, so a parent ignore rule does not hide an explicitly extended child.
+- `AGENTS.yml` controls the next resolved selection but stays outside that selection. Use `/reload` to apply an edit and inspect the resulting `PRELOAD.md` or `TREE.txt`.
+- `.tasks` contains future work and stays outside preload and tree context.
 
 ## pi-preload section
 
@@ -55,6 +66,18 @@ Use narrow globs that exclude secrets, generated or vendored content, binaries, 
 `pi-preload/src/index.ts` sets limits of 1,000 files, 256 KiB for each source or emitted block, and 2 MiB for emitted context. A full-mode file must be UTF-8 text unless an explicit path selects an image. A signature-mode file must be supported UTF-8 source and cannot be binary.
 
 After a preload selection change, inspect `PRELOAD.md` after `/reload`.
+
+## pi-tree section
+
+`PiTreeConfigurationSchema` in `pi-agents-yaml` accepts only `extends`, `includes`, and `excludes`.
+
+- Use the missing-section default for a complete Git-filtered tree in a small project.
+- Copy a narrow preload include list into `pi-tree.includes` for a large project with assets, corpora, artifacts, or research data.
+- Extended roots inside the session root keep their canonical session-relative prefix.
+- External and sibling roots use `external/<directory-name>`. Distinct roots that claim the same external prefix are a configuration error.
+- All selected virtual paths are normalized, merged, sorted, and rendered into the session root `TREE.txt`.
+
+After a tree selection change, inspect `TREE.txt` after `/reload`.
 
 ## pi-prompts section
 
