@@ -16,8 +16,14 @@
 	},
 	"exports": "./src/index.ts",
 	"files": [
-		"src"
+		"src",
+		"skills"
 	],
+	"pi": {
+		"skills": [
+			"./skills"
+		]
+	},
 	"scripts": {
 		"check": "npm run typecheck && npm run lint && npm test",
 		"format": "biome check --write .",
