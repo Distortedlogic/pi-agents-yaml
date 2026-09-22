@@ -5,16 +5,12 @@ description: Use when creating, changing, or auditing a repository or Pi package
 
 # AGENTS.yml authoring
 
-Use this skill to make one deliberate `AGENTS.yml` change while you preserve other extension-owned sections.
-
 ## Procedure
 
-1. Identify the exact project or package root and the intended source scope. Ask for the scope when it is not clear.
-2. Read the existing `AGENTS.yml`. Create it only when it is missing.
-3. Keep unrelated top-level sections and their order. Change only the requested section or sections.
-4. Apply the source precedence and section rules below.
-5. Validate the complete document and each changed section.
-6. Run `/reload`, then perform the section-specific completion checks.
+1. Confirm the project or package root and source scope.
+2. Read `AGENTS.yml`; create it only when it is missing. Preserve unrelated top-level sections and their order.
+3. Change only the requested sections with the rules below.
+4. Run `/reload` and check the requested feature.
 
 ## Document baseline
 
@@ -107,13 +103,3 @@ pi-modes:
   review: Review the changes.
   plan: Plan the changes.
 ```
-
-## Completion checks
-
-- The complete file is one YAML mapping with unique keys.
-- Each changed section has only its accepted keys and value types.
-- Unrelated top-level sections are unchanged.
-- Every prompt-chain member resolves to one declared prompt, and prompt names are unique across YAML and `.prompts/` sources.
-- Every preload `extends` path resolves without a cycle. Selected files stay within the stated limits.
-- `/reload` reports no configuration error.
-- For `pi-preload`, inspect `PRELOAD.md`. For `pi-prompts`, cycle the prompt catalog. For `pi-modes`, select or cycle the configured mode.
