@@ -1,0 +1,7 @@
+pi-preload:
+  presets:
+    - "pi-extension"
+  includes:
+    - "src/**/*.ts"
+    - "test/**/*.ts"
+    - "package.json"
