@@ -11,6 +11,7 @@ import {
 	DEFAULT_TREE_EXCLUDES,
 	discoverAgentsSources,
 	loadAgentsSection,
+	MAX_AGENTS_EXTENDS_DEPTH,
 	parseAgentsSection,
 	parseAgentsYaml,
 	resolveFileSelection,
@@ -570,5 +571,37 @@ test("rejects canonical extends cycles with the declaring source path", async (t
 	await assert.rejects(
 		resolvePiPreloadGraph({ rootPath: root }),
 		(error: unknown) => error instanceof Error && error.message.includes(childSourcePath),
+	);
+});
+
+test("allows three AGENTS.yml extends levels and rejects a fourth", async (t) => {
+	const directory = await temporaryDirectory(t);
+	const root = join(directory, "root");
+	const first = join(root, "first");
+	const second = join(first, "second");
+	const third = join(second, "third");
+	const fourth = join(third, "fourth");
+	await mkdir(fourth, { recursive: true });
+	await Promise.all([
+		writeFile(join(root, "AGENTS.yml"), "pi-preload:\n  extends: [./first]\n"),
+		writeFile(join(first, "AGENTS.yml"), "pi-preload:\n  extends: [./second]\n"),
+		writeFile(join(second, "AGENTS.yml"), "pi-preload:\n  extends: [./third]\n"),
+		writeFile(join(third, "AGENTS.yml"), "pi-preload: {}\n"),
+		writeFile(join(fourth, "AGENTS.yml"), "pi-preload: {}\n"),
+	]);
+
+	const resolved = await resolvePiPreloadGraph({ rootPath: root });
+	assert.deepEqual(
+		resolved.nodes.map(({ depth }) => depth),
+		[3, 2, 1, 0],
+	);
+
+	await writeFile(join(third, "AGENTS.yml"), "pi-preload:\n  extends: [./fourth]\n");
+	await assert.rejects(
+		resolvePiPreloadGraph({ rootPath: root }),
+		(error: unknown) =>
+			error instanceof Error &&
+			error.message.includes(`maximum depth of ${MAX_AGENTS_EXTENDS_DEPTH}`) &&
+			error.message.includes(join(fourth, "AGENTS.yml")),
 	);
 });

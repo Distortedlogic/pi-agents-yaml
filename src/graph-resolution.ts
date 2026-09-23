@@ -78,6 +78,8 @@ function references(value: unknown): readonly string[] {
 	return extensions ?? [];
 }
 
+export const MAX_AGENTS_EXTENDS_DEPTH = 3;
+
 export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved = Static<TSchemaType>>(
 	options: ResolveAgentsGraphOptions<TSchemaType, TResolved>,
 ): Promise<ResolvedAgentsGraph<TResolved>> {
@@ -91,12 +93,18 @@ export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved 
 		const detail = error instanceof Error ? error.message : String(error);
 		throw new Error(`Could not resolve AGENTS.yml root ${rootSourcePath}: ${detail}`, { cause: error });
 	}
-	const nodes: AgentsGraphNode<TResolved>[] = [];
-	const visited = new Set<string>();
-	const active = new Set<string>();
+	const sources: AgentsGraphNode<TResolved>[] = [];
+	const resolved = new Set<string>();
+	const activePath = new Set<string>();
 
-	const visit = async (candidatePath: string, depth: number, declaredBy?: string): Promise<void> => {
+	const resolveSource = async (candidatePath: string, depth: number, declaredBy?: string): Promise<void> => {
 		options.signal?.throwIfAborted();
+		if (depth > MAX_AGENTS_EXTENDS_DEPTH) {
+			const sourcePath = join(resolve(candidatePath), AGENTS_FILE_NAME);
+			throw new Error(
+				`AGENTS.yml extends in ${declaredBy ?? rootSourcePath} exceeds the maximum depth of ${MAX_AGENTS_EXTENDS_DEPTH} at ${sourcePath}.`,
+			);
+		}
 		let currentRoot: string;
 		try {
 			currentRoot = await realpath(resolve(candidatePath));
@@ -107,11 +115,11 @@ export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved 
 			});
 		}
 		const sourcePath = join(currentRoot, AGENTS_FILE_NAME);
-		if (active.has(currentRoot)) {
+		if (activePath.has(currentRoot)) {
 			throw new Error(`Circular AGENTS.yml extends in ${declaredBy ?? sourcePath}: ${sourcePath} is already active.`);
 		}
-		if (visited.has(currentRoot)) return;
-		active.add(currentRoot);
+		if (resolved.has(currentRoot)) return;
+		activePath.add(currentRoot);
 		const loadedSection =
 			currentRoot === rootPath && options.rootValue !== undefined
 				? parseAgentsSection(
@@ -129,15 +137,15 @@ export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved 
 				})
 			: (loadedSection as LoadedAgentsSection<TResolved> | undefined);
 		for (const reference of references(section?.value)) {
-			await visit(resolve(dirname(sourcePath), reference), depth + 1, sourcePath);
+			await resolveSource(resolve(dirname(sourcePath), reference), depth + 1, sourcePath);
 		}
-		active.delete(currentRoot);
-		visited.add(currentRoot);
-		nodes.push(Object.freeze({ rootPath: currentRoot, sourcePath, section, depth }));
+		activePath.delete(currentRoot);
+		resolved.add(currentRoot);
+		sources.push(Object.freeze({ rootPath: currentRoot, sourcePath, section, depth }));
 	};
 
-	await visit(rootPath, 0);
-	return Object.freeze({ rootPath, nodes: Object.freeze(nodes) });
+	await resolveSource(rootPath, 0);
+	return Object.freeze({ rootPath, nodes: Object.freeze(sources) });
 }
 
 function resolvedSectionGraph<T>(graph: ResolvedAgentsGraph<T>): ResolvedSectionGraph<T> {
