@@ -114,30 +114,35 @@ test("applies complete preload and tree defaults without overriding explicit inc
 		{
 			name: "missing",
 			source: "other-extension: {}\n",
+			explicitIncludes: false,
 			preloadIncludes: [],
 			treeIncludes: ["**/*"],
 		},
 		{
 			name: "empty",
 			source: "pi-preload: {}\npi-tree: {}\n",
+			explicitIncludes: false,
 			preloadIncludes: [],
 			treeIncludes: ["**/*"],
 		},
 		{
 			name: "omitted-includes",
 			source: "pi-preload:\n  contexts: []\npi-tree:\n  extends: []\n",
+			explicitIncludes: false,
 			preloadIncludes: [],
 			treeIncludes: ["**/*"],
 		},
 		{
 			name: "explicit-empty",
 			source: "pi-preload:\n  includes: []\npi-tree:\n  includes: []\n",
+			explicitIncludes: true,
 			preloadIncludes: [],
 			treeIncludes: [],
 		},
 		{
 			name: "explicit-includes",
 			source: "pi-preload:\n  includes: [preload.txt]\npi-tree:\n  includes: [tree.txt]\n",
+			explicitIncludes: true,
 			preloadIncludes: ["preload.txt"],
 			treeIncludes: ["tree.txt"],
 		},
@@ -153,6 +158,7 @@ test("applies complete preload and tree defaults without overriding explicit inc
 			contexts: [],
 			excludes: [],
 			extends: [],
+			explicitIncludes: selectedCase.explicitIncludes,
 			includes: [...selectedCase.preloadIncludes],
 			presets: [],
 			signatures: [],
@@ -160,12 +166,13 @@ test("applies complete preload and tree defaults without overriding explicit inc
 		assert.deepEqual(tree.nodes[0]?.section.value, {
 			excludes: [],
 			extends: [],
+			explicitIncludes: selectedCase.explicitIncludes,
 			includes: [...selectedCase.treeIncludes],
 		});
 	}
 });
 
-test("uses exact package excludes before configured excludes", async (t) => {
+test("lets explicit includes override Git ignore before configured excludes", async (t) => {
 	assert.deepEqual(DEFAULT_PRELOAD_EXCLUDES, [
 		".git",
 		".git/**",
@@ -212,15 +219,19 @@ test("uses exact package excludes before configured excludes", async (t) => {
 	const directory = await temporaryDirectory(t);
 	await Promise.all([
 		mkdir(join(directory, ".tasks")),
+		mkdir(join(directory, "ignored")),
 		mkdir(join(directory, "nested", ".tasks"), { recursive: true }),
 	]);
 	await Promise.all([
 		writeFile(
 			join(directory, "AGENTS.yml"),
-			"pi-preload:\n  includes: ['**/*']\n  excludes: [blocked.txt]\npi-tree:\n  includes: ['**/*']\n  excludes: [blocked.txt]\n",
+			"pi-preload:\n  includes: ['**/*']\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\npi-tree:\n  includes: ['**/*']\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\n",
 		),
+		writeFile(join(directory, ".gitignore"), "ignored/\n"),
 		writeFile(join(directory, "visible.txt"), "visible"),
 		writeFile(join(directory, "blocked.txt"), "blocked"),
+		writeFile(join(directory, "ignored", "excluded.txt"), "excluded"),
+		writeFile(join(directory, "ignored", "selected.txt"), "selected"),
 		writeFile(join(directory, "package-lock.json"), "{}\n"),
 		writeFile(join(directory, "PRELOAD.md"), "generated"),
 		writeFile(join(directory, "TREE.txt"), "generated"),
@@ -233,10 +244,20 @@ test("uses exact package excludes before configured excludes", async (t) => {
 	const tree = await resolveFileSelection({ graph: await resolvePiTreeGraph({ rootPath: directory }) });
 	assert.deepEqual(
 		preload.map((file) => file.displayPath),
-		["visible.txt"],
+		["ignored/selected.txt", "visible.txt"],
 	);
 	assert.deepEqual(
 		tree.map((file) => file.displayPath),
+		["ignored/selected.txt", "package-lock.json", "visible.txt"],
+	);
+
+	await writeFile(
+		join(directory, "AGENTS.yml"),
+		"pi-tree:\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\n",
+	);
+	const defaultTree = await resolveFileSelection({ graph: await resolvePiTreeGraph({ rootPath: directory }) });
+	assert.deepEqual(
+		defaultTree.map((file) => file.displayPath),
 		["package-lock.json", "visible.txt"],
 	);
 });
@@ -257,7 +278,12 @@ test("resolves generated project configuration without a pi-tree section", async
 	);
 
 	const graph = await resolvePiTreeGraph({ rootPath: directory });
-	assert.deepEqual(graph.nodes[0]?.section.value, { excludes: [], extends: [], includes: ["**/*"] });
+	assert.deepEqual(graph.nodes[0]?.section.value, {
+		excludes: [],
+		extends: [],
+		explicitIncludes: false,
+		includes: ["**/*"],
+	});
 });
 
 test("keeps the generated AGENTS schema aligned with owned section contracts", async () => {
@@ -463,7 +489,15 @@ test("keeps explicit targets that lack the requested section and applies only ow
 			{
 				rootPath: await realpath(preloadTarget),
 				name: "pi-preload",
-				value: { contexts: [], excludes: [], extends: [], includes: [], presets: [], signatures: [] },
+				value: {
+					contexts: [],
+					excludes: [],
+					extends: [],
+					explicitIncludes: false,
+					includes: [],
+					presets: [],
+					signatures: [],
+				},
 			},
 			{
 				rootPath: await realpath(directory),
@@ -472,6 +506,7 @@ test("keeps explicit targets that lack the requested section and applies only ow
 					contexts: [],
 					excludes: [],
 					extends: ["./preload-target"],
+					explicitIncludes: false,
 					includes: [],
 					presets: [],
 					signatures: [],
@@ -485,12 +520,12 @@ test("keeps explicit targets that lack the requested section and applies only ow
 			{
 				rootPath: await realpath(treeTarget),
 				name: "pi-tree",
-				value: { excludes: [], extends: [], includes: ["**/*"] },
+				value: { excludes: [], extends: [], explicitIncludes: false, includes: ["**/*"] },
 			},
 			{
 				rootPath: await realpath(directory),
 				name: "pi-tree",
-				value: { excludes: [], extends: ["./tree-target"], includes: [] },
+				value: { excludes: [], extends: ["./tree-target"], explicitIncludes: true, includes: [] },
 			},
 		],
 	);
@@ -534,7 +569,7 @@ test("selects explicit full and signature files across an ignored meta repositor
 			join(nested, "AGENTS.yml"),
 			"pi-preload:\n  includes: [full.txt]\n  signatures: ['*.ts']\n  excludes: [excluded.ts]\n",
 		),
-		writeFile(join(root, ".gitignore"), "packages/\ntool-alias/\n"),
+		writeFile(join(root, ".gitignore"), "packages/\ntool-alias/\nroot-full.txt\nroot-signature.ts\n"),
 		writeFile(join(root, "root-full.txt"), "root full"),
 		writeFile(join(root, "root-signature.ts"), "export {};\n"),
 		writeFile(join(root, "sentinel.md"), "unselected"),

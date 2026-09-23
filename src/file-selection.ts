@@ -53,6 +53,7 @@ export type FileSelectionMode = "full" | "signature";
 
 export interface FileSelectionConfiguration {
 	readonly excludes: readonly string[];
+	readonly explicitIncludes?: boolean;
 	readonly includes: readonly string[];
 	readonly signatures?: readonly string[];
 }
@@ -94,13 +95,14 @@ export async function resolveFileSelection<T extends FileSelectionConfiguration>
 			["full", configuration.includes],
 		] as const) {
 			if (patterns.length === 0) continue;
+			const useGitignore = mode === "full" && configuration.explicitIncludes !== true;
 			const files = await globby(patterns.map(normalizePattern), {
 				absolute: true,
 				cwd: node.rootPath,
 				dot: true,
 				followSymbolicLinks: false,
-				gitignore: sessionRoot,
-				ignoreFiles: sessionRoot ? undefined : "**/.gitignore",
+				gitignore: useGitignore && sessionRoot,
+				ignoreFiles: useGitignore && !sessionRoot ? "**/.gitignore" : undefined,
 				ignore: excludes,
 				onlyFiles: true,
 				unique: true,
