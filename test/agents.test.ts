@@ -15,8 +15,8 @@ import {
 	parseAgentsSection,
 	parseAgentsYaml,
 	resolveFileSelection,
-	resolvePiPreloadGraph,
-	resolvePiTreeGraph,
+	resolvePiPreloadSources,
+	resolvePiTreeSources,
 } from "../src/index.ts";
 
 const SelectedSectionSchema = Type.Object(
@@ -91,19 +91,19 @@ test("resolves pi-preload and pi-tree from only their owned sections", async (t)
 		writeFile(join(directory, "tree.txt"), "tree"),
 	]);
 
-	const preload = await resolvePiPreloadGraph({ rootPath: directory });
-	const tree = await resolvePiTreeGraph({ rootPath: directory });
-	assert.equal(preload.nodes[0]?.section.name, "pi-preload");
-	assert.equal(tree.nodes[0]?.section.name, "pi-tree");
-	assert.deepEqual(preload.nodes[0]?.section.value.includes, ["preload.txt"]);
-	assert.deepEqual(preload.nodes[0]?.section.value.signatures, ["signature.ts"]);
-	assert.deepEqual(tree.nodes[0]?.section.value.includes, ["tree.txt"]);
+	const preload = await resolvePiPreloadSources({ rootPath: directory });
+	const tree = await resolvePiTreeSources({ rootPath: directory });
+	assert.equal(preload.sources[0]?.section.name, "pi-preload");
+	assert.equal(tree.sources[0]?.section.name, "pi-tree");
+	assert.deepEqual(preload.sources[0]?.section.value.includes, ["preload.txt"]);
+	assert.deepEqual(preload.sources[0]?.section.value.signatures, ["signature.ts"]);
+	assert.deepEqual(tree.sources[0]?.section.value.includes, ["tree.txt"]);
 	assert.deepEqual(
-		(await resolveFileSelection({ graph: preload })).map((file) => file.displayPath),
+		(await resolveFileSelection({ resolution: preload })).map((file) => file.displayPath),
 		["preload.txt", "signature.ts"],
 	);
 	assert.deepEqual(
-		(await resolveFileSelection({ graph: tree })).map((file) => file.displayPath),
+		(await resolveFileSelection({ resolution: tree })).map((file) => file.displayPath),
 		["tree.txt"],
 	);
 });
@@ -152,9 +152,9 @@ test("applies complete preload and tree defaults without overriding explicit inc
 		const root = join(directory, selectedCase.name);
 		await mkdir(root);
 		await writeFile(join(root, "AGENTS.yml"), selectedCase.source);
-		const preload = await resolvePiPreloadGraph({ rootPath: root });
-		const tree = await resolvePiTreeGraph({ rootPath: root });
-		assert.deepEqual(preload.nodes[0]?.section.value, {
+		const preload = await resolvePiPreloadSources({ rootPath: root });
+		const tree = await resolvePiTreeSources({ rootPath: root });
+		assert.deepEqual(preload.sources[0]?.section.value, {
 			contexts: [],
 			excludes: [],
 			extends: [],
@@ -163,7 +163,7 @@ test("applies complete preload and tree defaults without overriding explicit inc
 			presets: [],
 			signatures: [],
 		});
-		assert.deepEqual(tree.nodes[0]?.section.value, {
+		assert.deepEqual(tree.sources[0]?.section.value, {
 			excludes: [],
 			extends: [],
 			explicitIncludes: selectedCase.explicitIncludes,
@@ -204,8 +204,10 @@ test("lets explicit includes override Git ignore before configured excludes", as
 		writeFile(join(directory, "nested", ".tasks", "plan.md"), "nested task"),
 	]);
 
-	const preload = await resolveFileSelection({ graph: await resolvePiPreloadGraph({ rootPath: directory }) });
-	const tree = await resolveFileSelection({ graph: await resolvePiTreeGraph({ rootPath: directory }) });
+	const preload = await resolveFileSelection({
+		resolution: await resolvePiPreloadSources({ rootPath: directory }),
+	});
+	const tree = await resolveFileSelection({ resolution: await resolvePiTreeSources({ rootPath: directory }) });
 	assert.deepEqual(
 		preload.map((file) => file.displayPath),
 		["ignored/selected.txt", "visible.txt"],
@@ -219,7 +221,9 @@ test("lets explicit includes override Git ignore before configured excludes", as
 		join(directory, "AGENTS.yml"),
 		"pi-tree:\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\n",
 	);
-	const defaultTree = await resolveFileSelection({ graph: await resolvePiTreeGraph({ rootPath: directory }) });
+	const defaultTree = await resolveFileSelection({
+		resolution: await resolvePiTreeSources({ rootPath: directory }),
+	});
 	assert.deepEqual(
 		defaultTree.map((file) => file.displayPath),
 		["package-lock.json", "visible.txt"],
@@ -338,18 +342,18 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 		symlink(child, childAlias, "dir"),
 	]);
 
-	const graph = await resolvePiPreloadGraph({ rootPath: root, presetDirectory });
+	const resolution = await resolvePiPreloadSources({ rootPath: root, presetDirectory });
 	assert.deepEqual(
-		graph.nodes.map(({ rootPath }) => rootPath),
+		resolution.sources.map(({ rootPath }) => rootPath),
 		[await realpath(child), await realpath(root)],
 	);
-	const rootConfiguration = graph.nodes.at(-1)?.section?.value;
+	const rootConfiguration = resolution.sources.at(-1)?.section?.value;
 	assert.deepEqual(rootConfiguration?.contexts, ["base-context", "extra-context", "dioxus", "root-local"]);
 	assert.deepEqual(rootConfiguration?.includes, ["base/*.txt", "extra/*.txt", "*.txt"]);
 	assert.deepEqual(rootConfiguration?.excludes, ["base-ignore.txt", "extra-ignore.txt", "root-only.txt"]);
 	assert.deepEqual(
-		graph.nodes.flatMap((node) =>
-			(node.section?.value.contexts ?? []).map((context) => ({ context, rootPath: node.rootPath })),
+		resolution.sources.flatMap((source) =>
+			(source.section?.value.contexts ?? []).map((context) => ({ context, rootPath: source.rootPath })),
 		),
 		[
 			{ context: "dioxus", rootPath: await realpath(child) },
@@ -364,8 +368,11 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 
 test("pi-extension preset provides native documentation and critical public signatures", async (t) => {
 	const directory = await temporaryDirectory(t);
-	const graph = await resolvePiPreloadGraph({ rootPath: directory, rootValue: { presets: ["pi-extension"] } });
-	const configuration = graph.nodes[0]?.section.value;
+	const resolution = await resolvePiPreloadSources({
+		rootPath: directory,
+		rootValue: { presets: ["pi-extension"] },
+	});
+	const configuration = resolution.sources[0]?.section.value;
 	assert.ok(configuration);
 	for (const document of ["extensions", "packages", "prompt-templates", "settings", "skills", "themes"]) {
 		assert.equal(
@@ -401,10 +408,14 @@ test("keeps explicit targets that lack the requested section and applies only ow
 		writeFile(join(treeTarget, "AGENTS.yml"), "pi-preload:\n  includes: [preload-only.txt]\n"),
 	]);
 
-	const preload = await resolvePiPreloadGraph({ rootPath: directory });
-	const tree = await resolvePiTreeGraph({ rootPath: directory });
+	const preload = await resolvePiPreloadSources({ rootPath: directory });
+	const tree = await resolvePiTreeSources({ rootPath: directory });
 	assert.deepEqual(
-		preload.nodes.map((node) => ({ rootPath: node.rootPath, name: node.section.name, value: node.section.value })),
+		preload.sources.map((source) => ({
+			rootPath: source.rootPath,
+			name: source.section.name,
+			value: source.section.value,
+		})),
 		[
 			{
 				rootPath: await realpath(preloadTarget),
@@ -435,7 +446,11 @@ test("keeps explicit targets that lack the requested section and applies only ow
 		],
 	);
 	assert.deepEqual(
-		tree.nodes.map((node) => ({ rootPath: node.rootPath, name: node.section.name, value: node.section.value })),
+		tree.sources.map((source) => ({
+			rootPath: source.rootPath,
+			name: source.section.name,
+			value: source.section.value,
+		})),
 		[
 			{
 				rootPath: await realpath(treeTarget),
@@ -505,8 +520,8 @@ test("selects explicit full and signature files across an ignored meta repositor
 	]);
 	await symlink(join(child, "src", "full.ts"), join(child, "types", "linked.ts"));
 
-	const graph = await resolvePiPreloadGraph({ rootPath: root });
-	const selected = await resolveFileSelection({ graph });
+	const resolution = await resolvePiPreloadSources({ rootPath: root });
+	const selected = await resolveFileSelection({ resolution });
 	assert.equal(new Set(selected.map(({ absolutePath }) => absolutePath)).size, selected.length);
 	assert.equal(Object.isFrozen(selected), true);
 	assert.equal(selected.every(Object.isFrozen), true);
@@ -569,7 +584,7 @@ test("rejects canonical extends cycles with the declaring source path", async (t
 	]);
 	const childSourcePath = join(await realpath(child), "AGENTS.yml");
 	await assert.rejects(
-		resolvePiPreloadGraph({ rootPath: root }),
+		resolvePiPreloadSources({ rootPath: root }),
 		(error: unknown) => error instanceof Error && error.message.includes(childSourcePath),
 	);
 });
@@ -590,15 +605,15 @@ test("allows three AGENTS.yml extends levels and rejects a fourth", async (t) =>
 		writeFile(join(fourth, "AGENTS.yml"), "pi-preload: {}\n"),
 	]);
 
-	const resolved = await resolvePiPreloadGraph({ rootPath: root });
+	const resolved = await resolvePiPreloadSources({ rootPath: root });
 	assert.deepEqual(
-		resolved.nodes.map(({ depth }) => depth),
+		resolved.sources.map(({ depth }) => depth),
 		[3, 2, 1, 0],
 	);
 
 	await writeFile(join(third, "AGENTS.yml"), "pi-preload:\n  extends: [./fourth]\n");
 	await assert.rejects(
-		resolvePiPreloadGraph({ rootPath: root }),
+		resolvePiPreloadSources({ rootPath: root }),
 		(error: unknown) =>
 			error instanceof Error &&
 			error.message.includes(`maximum depth of ${MAX_AGENTS_EXTENDS_DEPTH}`) &&

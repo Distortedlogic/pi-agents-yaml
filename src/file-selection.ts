@@ -1,7 +1,7 @@
 import { lstat, realpath } from "node:fs/promises";
 import { relative, sep } from "node:path";
 import { globby } from "globby";
-import type { ResolvedSectionGraph } from "./graph-resolution.ts";
+import type { ResolvedSectionSources } from "./source-resolution.ts";
 
 export const DEFAULT_PRELOAD_EXCLUDES = Object.freeze([
 	".git",
@@ -67,7 +67,7 @@ export interface SelectedAgentsFile {
 }
 
 export interface ResolveFileSelectionOptions<T extends FileSelectionConfiguration> {
-	readonly graph: ResolvedSectionGraph<T>;
+	readonly resolution: ResolvedSectionSources<T>;
 	readonly signal?: AbortSignal;
 }
 
@@ -85,11 +85,11 @@ export async function resolveFileSelection<T extends FileSelectionConfiguration>
 	options: ResolveFileSelectionOptions<T>,
 ): Promise<readonly SelectedAgentsFile[]> {
 	const selected = new Map<string, SelectedAgentsFile>();
-	for (const node of options.graph.nodes) {
+	for (const source of options.resolution.sources) {
 		options.signal?.throwIfAborted();
-		const configuration = node.section.value;
-		const sessionRoot = node.rootPath === options.graph.rootPath;
-		const excludes = [...packageExcludes(node.section.name), ...configuration.excludes].map(normalizePattern);
+		const configuration = source.section.value;
+		const sessionRoot = source.rootPath === options.resolution.rootPath;
+		const excludes = [...packageExcludes(source.section.name), ...configuration.excludes].map(normalizePattern);
 		for (const [mode, patterns] of [
 			["signature", configuration.signatures ?? []],
 			["full", configuration.includes],
@@ -98,7 +98,7 @@ export async function resolveFileSelection<T extends FileSelectionConfiguration>
 			const useGitignore = mode === "full" && configuration.explicitIncludes !== true;
 			const files = await globby(patterns.map(normalizePattern), {
 				absolute: true,
-				cwd: node.rootPath,
+				cwd: source.rootPath,
 				dot: true,
 				followSymbolicLinks: false,
 				gitignore: useGitignore && sessionRoot,
@@ -117,9 +117,9 @@ export async function resolveFileSelection<T extends FileSelectionConfiguration>
 					absolutePath,
 					Object.freeze({
 						absolutePath,
-						displayPath: relative(options.graph.rootPath, absolutePath).split(sep).join("/"),
-						sourceRoot: node.rootPath,
-						configurationPath: node.sourcePath,
+						displayPath: relative(options.resolution.rootPath, absolutePath).split(sep).join("/"),
+						sourceRoot: source.rootPath,
+						configurationPath: source.sourcePath,
 						mode,
 					}),
 				);

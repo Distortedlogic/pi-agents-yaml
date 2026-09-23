@@ -15,39 +15,39 @@ import {
 } from "./preload-schema.ts";
 import { type LoadedAgentsSection, loadAgentsSection, parseAgentsSection } from "./section.ts";
 
-export interface RecursiveAgentsSection {
+export interface AgentsSectionWithExtends {
 	readonly extends?: readonly string[];
 }
 
-export interface AgentsGraphNode<T> {
+export interface ResolvedAgentsSource<T> {
 	readonly rootPath: string;
 	readonly sourcePath: string;
 	readonly section: LoadedAgentsSection<T> | undefined;
 	readonly depth: number;
 }
 
-export interface ResolvedAgentsGraph<T> {
+export interface ResolvedAgentsSources<T> {
 	readonly rootPath: string;
-	readonly nodes: readonly AgentsGraphNode<T>[];
+	readonly sources: readonly ResolvedAgentsSource<T>[];
 }
 
-export interface ResolvedSectionGraphNode<T> extends Omit<AgentsGraphNode<T>, "section"> {
+export interface ResolvedSectionSource<T> extends Omit<ResolvedAgentsSource<T>, "section"> {
 	readonly section: LoadedAgentsSection<T>;
 }
 
-export interface ResolvedSectionGraph<T> {
+export interface ResolvedSectionSources<T> {
 	readonly rootPath: string;
-	readonly nodes: readonly ResolvedSectionGraphNode<T>[];
+	readonly sources: readonly ResolvedSectionSource<T>[];
 }
 
-export interface ResolvePiPreloadGraphOptions {
+export interface ResolvePiPreloadSourcesOptions {
 	readonly rootPath: string;
 	readonly rootValue?: PiPreloadConfiguration;
 	readonly presetDirectory?: string;
 	readonly signal?: AbortSignal;
 }
 
-export interface ResolvePiTreeGraphOptions {
+export interface ResolvePiTreeSourcesOptions {
 	readonly rootPath: string;
 	readonly rootValue?: PiTreeConfiguration;
 	readonly signal?: AbortSignal;
@@ -60,7 +60,7 @@ export interface ResolveAgentsSectionContext {
 	readonly signal?: AbortSignal;
 }
 
-export interface ResolveAgentsGraphOptions<TSchemaType extends TSchema, TResolved = Static<TSchemaType>> {
+export interface ResolveAgentsSourcesOptions<TSchemaType extends TSchema, TResolved = Static<TSchemaType>> {
 	readonly rootPath: string;
 	readonly sectionName: string;
 	readonly schema: TSchemaType;
@@ -74,15 +74,14 @@ export interface ResolveAgentsGraphOptions<TSchemaType extends TSchema, TResolve
 
 function references(value: unknown): readonly string[] {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return [];
-	const extensions = (value as RecursiveAgentsSection).extends;
-	return extensions ?? [];
+	return (value as AgentsSectionWithExtends).extends ?? [];
 }
 
 export const MAX_AGENTS_EXTENDS_DEPTH = 3;
 
-export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved = Static<TSchemaType>>(
-	options: ResolveAgentsGraphOptions<TSchemaType, TResolved>,
-): Promise<ResolvedAgentsGraph<TResolved>> {
+export async function resolveAgentsSources<TSchemaType extends TSchema, TResolved = Static<TSchemaType>>(
+	options: ResolveAgentsSourcesOptions<TSchemaType, TResolved>,
+): Promise<ResolvedAgentsSources<TResolved>> {
 	options.signal?.throwIfAborted();
 	const requestedRootPath = resolve(options.rootPath);
 	const rootSourcePath = join(requestedRootPath, AGENTS_FILE_NAME);
@@ -93,8 +92,8 @@ export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved 
 		const detail = error instanceof Error ? error.message : String(error);
 		throw new Error(`Could not resolve AGENTS.yml root ${rootSourcePath}: ${detail}`, { cause: error });
 	}
-	const sources: AgentsGraphNode<TResolved>[] = [];
-	const resolved = new Set<string>();
+	const sources: ResolvedAgentsSource<TResolved>[] = [];
+	const completed = new Set<string>();
 	const activePath = new Set<string>();
 
 	const resolveSource = async (candidatePath: string, depth: number, declaredBy?: string): Promise<void> => {
@@ -118,7 +117,7 @@ export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved 
 		if (activePath.has(currentRoot)) {
 			throw new Error(`Circular AGENTS.yml extends in ${declaredBy ?? sourcePath}: ${sourcePath} is already active.`);
 		}
-		if (resolved.has(currentRoot)) return;
+		if (completed.has(currentRoot)) return;
 		activePath.add(currentRoot);
 		const loadedSection =
 			currentRoot === rootPath && options.rootValue !== undefined
@@ -140,30 +139,33 @@ export async function resolveAgentsGraph<TSchemaType extends TSchema, TResolved 
 			await resolveSource(resolve(dirname(sourcePath), reference), depth + 1, sourcePath);
 		}
 		activePath.delete(currentRoot);
-		resolved.add(currentRoot);
+		completed.add(currentRoot);
 		sources.push(Object.freeze({ rootPath: currentRoot, sourcePath, section, depth }));
 	};
 
 	await resolveSource(rootPath, 0);
-	return Object.freeze({ rootPath, nodes: Object.freeze(sources) });
+	return Object.freeze({ rootPath, sources: Object.freeze(sources) });
 }
 
-function resolvedSectionGraph<T>(graph: ResolvedAgentsGraph<T>): ResolvedSectionGraph<T> {
+function resolvedSectionSources<T>(resolution: ResolvedAgentsSources<T>): ResolvedSectionSources<T> {
 	return Object.freeze({
-		rootPath: graph.rootPath,
-		nodes: Object.freeze(
-			graph.nodes.map((node) => {
-				if (!node.section) throw new Error(`Resolved section is missing from ${node.sourcePath}.`);
-				return Object.freeze({ ...node, section: node.section });
+		rootPath: resolution.rootPath,
+		sources: Object.freeze(
+			resolution.sources.map((source) => {
+				if (!source.section) throw new Error(`Resolved section is missing from ${source.sourcePath}.`);
+				return Object.freeze({ ...source, section: source.section });
 			}),
 		),
 	});
 }
 
-export async function resolvePiPreloadGraph(
-	options: ResolvePiPreloadGraphOptions,
-): Promise<ResolvedSectionGraph<ResolvedPiPreloadConfiguration>> {
-	const graph = await resolveAgentsGraph<typeof PiPreloadConfigurationSchema, ResolvedPiPreloadConfiguration>({
+export async function resolvePiPreloadSources(
+	options: ResolvePiPreloadSourcesOptions,
+): Promise<ResolvedSectionSources<ResolvedPiPreloadConfiguration>> {
+	const resolution = await resolveAgentsSources<
+		typeof PiPreloadConfigurationSchema,
+		ResolvedPiPreloadConfiguration
+	>({
 		rootPath: options.rootPath,
 		sectionName: "pi-preload",
 		schema: PiPreloadConfigurationSchema,
@@ -183,13 +185,13 @@ export async function resolvePiPreloadGraph(
 			});
 		},
 	});
-	return resolvedSectionGraph(graph);
+	return resolvedSectionSources(resolution);
 }
 
-export async function resolvePiTreeGraph(
-	options: ResolvePiTreeGraphOptions,
-): Promise<ResolvedSectionGraph<ResolvedPiTreeConfiguration>> {
-	const graph = await resolveAgentsGraph<typeof PiTreeConfigurationSchema, ResolvedPiTreeConfiguration>({
+export async function resolvePiTreeSources(
+	options: ResolvePiTreeSourcesOptions,
+): Promise<ResolvedSectionSources<ResolvedPiTreeConfiguration>> {
+	const resolution = await resolveAgentsSources<typeof PiTreeConfigurationSchema, ResolvedPiTreeConfiguration>({
 		rootPath: options.rootPath,
 		sectionName: "pi-tree",
 		schema: PiTreeConfigurationSchema,
@@ -202,5 +204,5 @@ export async function resolvePiTreeGraph(
 				value: resolvePiTreeConfiguration(section?.value),
 			}),
 	});
-	return resolvedSectionGraph(graph);
+	return resolvedSectionSources(resolution);
 }
