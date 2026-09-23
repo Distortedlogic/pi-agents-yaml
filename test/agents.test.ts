@@ -550,7 +550,7 @@ test("selects explicit full and signature files across an ignored meta repositor
 				"pi-preload:",
 				"  extends: [./packages/tool, ./tool-alias]",
 				"  includes: [root-full.txt]",
-				"  signatures: ['**/*.ts']",
+				"  signatures: [root-signature.ts]",
 				"",
 			].join("\n"),
 		),
