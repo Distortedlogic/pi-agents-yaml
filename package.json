@@ -1,6 +1,6 @@
 {
 	"name": "pi-agents-yaml",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"private": true,
 	"description": "Shared AGENTS.yml loading, validation, discovery, graph resolution, and file selection for Pi packages.",
 	"type": "module",

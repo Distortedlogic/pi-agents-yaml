@@ -361,21 +361,23 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 	);
 });
 
-test("pi-extension preset provides native documentation and public API signatures", async (t) => {
+test("pi-extension preset provides native documentation without source signatures", async (t) => {
 	const directory = await temporaryDirectory(t);
 	const graph = await resolvePiPreloadGraph({ rootPath: directory, rootValue: { presets: ["pi-extension"] } });
 	const configuration = graph.nodes[0]?.section.value;
 	assert.ok(configuration);
 	for (const document of ["extensions", "packages", "prompt-templates", "settings", "skills", "themes"]) {
-		assert.equal(configuration.includes.some((pattern) => pattern.includes(document)), true, document);
+		assert.equal(
+			configuration.includes.some((pattern) => pattern.includes(document)),
+			true,
+			document,
+		);
 	}
-	for (const source of ["package-manager", "settings-manager", "/packages/ai/", "/packages/tui/"]) {
-		assert.equal(configuration.signatures.some((pattern) => pattern.includes(source)), true, source);
-	}
-	assert.equal(configuration.includes.every((pattern) => pattern.includes("/docs/")), true);
+	assert.deepEqual(configuration.signatures, []);
 	assert.equal(
-		[...configuration.includes, ...configuration.signatures].every((pattern) =>
-			pattern.startsWith("/home/entropybender/coding/3rd/pi/"),
+		configuration.includes.every(
+			(pattern) =>
+				pattern.startsWith("/home/entropybender/coding/3rd/pi/packages/coding-agent/docs/") && pattern.endsWith(".md"),
 		),
 		true,
 	);
