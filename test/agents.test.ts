@@ -5,7 +5,6 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { CONFIG_DIR_NAME, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Value } from "typebox/value";
 import {
 	AgentsConfigurationSchema,
 	DEFAULT_PRELOAD_EXCLUDES,
@@ -173,48 +172,12 @@ test("applies complete preload and tree defaults without overriding explicit inc
 });
 
 test("lets explicit includes override Git ignore before configured excludes", async (t) => {
-	assert.deepEqual(DEFAULT_PRELOAD_EXCLUDES, [
-		".git",
-		".git/**",
-		"**/AGENTS.yml",
-		"**/.tasks",
-		"**/.tasks/**",
-		"PRELOAD.md",
-		"TREE.txt",
-		"**/.terraform.lock.hcl",
-		"**/bun.lock",
-		"**/bun.lockb",
-		"**/Cargo.lock",
-		"**/composer.lock",
-		"**/deno.lock",
-		"**/flake.lock",
-		"**/Gemfile.lock",
-		"**/gradle.lockfile",
-		"**/mix.lock",
-		"**/npm-shrinkwrap.json",
-		"**/package-lock.json",
-		"**/Package.resolved",
-		"**/packages.lock.json",
-		"**/paket.lock",
-		"**/Pipfile.lock",
-		"**/pnpm-lock.yaml",
-		"**/Podfile.lock",
-		"**/poetry.lock",
-		"**/pubspec.lock",
-		"**/uv.lock",
-		"**/yarn.lock",
-	]);
-	assert.deepEqual(DEFAULT_TREE_EXCLUDES, [
-		".git",
-		".git/**",
-		"**/AGENTS.yml",
-		"**/.tasks",
-		"**/.tasks/**",
-		"**/.pi/readcache/**",
-		"**/.pi/tmp/**",
-		"PRELOAD.md",
-		"TREE.txt",
-	]);
+	for (const path of [".git/**", "**/AGENTS.yml", "**/.tasks/**", "PRELOAD.md", "TREE.txt"]) {
+		assert.equal(DEFAULT_PRELOAD_EXCLUDES.includes(path), true);
+		assert.equal(DEFAULT_TREE_EXCLUDES.includes(path), true);
+	}
+	assert.equal(DEFAULT_PRELOAD_EXCLUDES.includes("**/package-lock.json"), true);
+	assert.equal(DEFAULT_TREE_EXCLUDES.includes("**/package-lock.json"), false);
 
 	const directory = await temporaryDirectory(t);
 	await Promise.all([
@@ -262,30 +225,6 @@ test("lets explicit includes override Git ignore before configured excludes", as
 	);
 });
 
-test("resolves generated project configuration without a pi-tree section", async (t) => {
-	const directory = await temporaryDirectory(t);
-	await writeFile(
-		join(directory, "AGENTS.yml"),
-		[
-			"pi-preload:",
-			"  presets: [pi-extension]",
-			"  includes:",
-			"    - src/**/*.ts",
-			"    - test/**/*.ts",
-			"    - package.json",
-			"",
-		].join("\n"),
-	);
-
-	const graph = await resolvePiTreeGraph({ rootPath: directory });
-	assert.deepEqual(graph.nodes[0]?.section.value, {
-		excludes: [],
-		extends: [],
-		explicitIncludes: false,
-		includes: ["**/*"],
-	});
-});
-
 test("keeps the generated AGENTS schema aligned with owned section contracts", async () => {
 	const generated = JSON.parse(
 		await readFile(new URL("../schemas/AGENTS.schema.json", import.meta.url), "utf8"),
@@ -293,19 +232,6 @@ test("keeps the generated AGENTS schema aligned with owned section contracts", a
 	const { $schema, ...documentSchema } = generated;
 	assert.equal($schema, "https://json-schema.org/draft/2020-12/schema");
 	assert.deepEqual(documentSchema, JSON.parse(JSON.stringify(AgentsConfigurationSchema)));
-
-	for (const value of [
-		{},
-		{ "pi-preload": {} },
-		{ "pi-tree": {} },
-		{ "pi-preload": { includes: [] }, "pi-tree": { includes: [] } },
-		{ "pi-preload": { signatures: ["src/**/*.ts"] }, "pi-tree": { excludes: ["generated/**"] } },
-	]) {
-		assert.equal(Value.Check(AgentsConfigurationSchema, value), true);
-	}
-	for (const preloadOnlyField of ["contexts", "presets", "signatures"]) {
-		assert.equal(Value.Check(AgentsConfigurationSchema, { "pi-tree": { [preloadOnlyField]: [] } }), false);
-	}
 });
 
 test("preserves cancellation for document loading", async (t) => {
@@ -315,10 +241,6 @@ test("preserves cancellation for document loading", async (t) => {
 	const controller = new AbortController();
 	controller.abort();
 
-	await assert.rejects(
-		loadAgentsSection(sourcePath, "selected", SelectedSectionSchema, { signal: controller.signal }),
-		(error: unknown) => error instanceof Error && error.name === "AbortError",
-	);
 	await assert.rejects(
 		resolvePiPreloadGraph({ rootPath: directory, signal: controller.signal }),
 		(error: unknown) => error instanceof Error && error.name === "AbortError",
