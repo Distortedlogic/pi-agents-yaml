@@ -1,2 +1,5 @@
 includes:
   - "/home/entropybender/coding/3rd/pi/packages/coding-agent/docs/{compaction,custom-provider,development,environment-variables,extensions,json,keybindings,models,packages,prompt-templates,providers,rpc,sdk,security,session-format,sessions,settings,skills,themes,tui}.md"
+signatures:
+  - "/home/entropybender/coding/3rd/pi/packages/coding-agent/src/index.ts"
+  - "/home/entropybender/coding/3rd/pi/packages/coding-agent/src/core/extensions/types.ts"

@@ -361,7 +361,7 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 	);
 });
 
-test("pi-extension preset provides native documentation without source signatures", async (t) => {
+test("pi-extension preset provides native documentation and critical public signatures", async (t) => {
 	const directory = await temporaryDirectory(t);
 	const graph = await resolvePiPreloadGraph({ rootPath: directory, rootValue: { presets: ["pi-extension"] } });
 	const configuration = graph.nodes[0]?.section.value;
@@ -373,7 +373,10 @@ test("pi-extension preset provides native documentation without source signature
 			document,
 		);
 	}
-	assert.deepEqual(configuration.signatures, []);
+	assert.deepEqual(configuration.signatures, [
+		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/index.ts",
+		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/core/extensions/types.ts",
+	]);
 	assert.equal(
 		configuration.includes.every(
 			(pattern) =>
