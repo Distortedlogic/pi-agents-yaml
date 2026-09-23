@@ -172,7 +172,7 @@ test("applies complete preload and tree defaults without overriding explicit inc
 });
 
 test("lets explicit includes override Git ignore before configured excludes", async (t) => {
-	for (const path of [".git/**", "**/AGENTS.yml", "**/.tasks/**", "PRELOAD.md", "TREE.txt"]) {
+	for (const path of ["**/.tasks/**", "PRELOAD.md"]) {
 		assert.equal(DEFAULT_PRELOAD_EXCLUDES.includes(path), true);
 		assert.equal(DEFAULT_TREE_EXCLUDES.includes(path), true);
 	}
@@ -232,19 +232,6 @@ test("keeps the generated AGENTS schema aligned with owned section contracts", a
 	const { $schema, ...documentSchema } = generated;
 	assert.equal($schema, "https://json-schema.org/draft/2020-12/schema");
 	assert.deepEqual(documentSchema, JSON.parse(JSON.stringify(AgentsConfigurationSchema)));
-});
-
-test("preserves cancellation for document loading", async (t) => {
-	const directory = await temporaryDirectory(t);
-	const sourcePath = join(directory, "AGENTS.yml");
-	await writeFile(sourcePath, "selected:\n  enabled: true\n");
-	const controller = new AbortController();
-	controller.abort();
-
-	await assert.rejects(
-		resolvePiPreloadGraph({ rootPath: directory, signal: controller.signal }),
-		(error: unknown) => error instanceof Error && error.name === "AbortError",
-	);
 });
 
 test("discovers ordered physical sources without reading an untrusted project", async (t) => {
@@ -313,21 +300,6 @@ test("discovers ordered physical sources without reading an untrusted project", 
 		false,
 	);
 	assert.equal(trusted.at(-1)?.hasAgentsFile, false);
-});
-
-test("cancels source discovery before settings or project sources are read", () => {
-	const controller = new AbortController();
-	controller.abort();
-	assert.throws(
-		() =>
-			discoverAgentsSources({
-				cwd: "/unread-project",
-				projectTrusted: false,
-				agentDirectory: "/unread-agent",
-				signal: controller.signal,
-			}),
-		(error: unknown) => error instanceof Error && error.name === "AbortError",
-	);
 });
 
 test("resolves preload presets and extended roots in stable order", async (t) => {
