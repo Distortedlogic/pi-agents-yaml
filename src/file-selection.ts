@@ -37,12 +37,14 @@ export const DEFAULT_PRELOAD_EXCLUDES = Object.freeze([
 
 const DEFAULT_TREE_IGNORED_DIRECTORIES = Object.freeze([
 	".aws-sam",
+	".git",
 	".cache",
 	".docusaurus",
 	".gradle",
 	".mypy_cache",
 	".next",
 	".nuxt",
+	".nx",
 	".nyc_output",
 	".output",
 	".parcel-cache",

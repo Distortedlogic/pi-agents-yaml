@@ -144,6 +144,7 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 
 	const directory = await temporaryDirectory(t);
 	const generatedDirectories = [
+		".nx",
 		"node_modules",
 		"dist",
 		"dist-swagger",
@@ -209,6 +210,8 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 test("explicit tree includes bypass outer ignore while keeping default exclusions", async (t) => {
 	const directory = await temporaryDirectory(t);
 	await Promise.all([
+		mkdir(join(directory, "platform", ".git"), { recursive: true }),
+		mkdir(join(directory, "platform", ".nx"), { recursive: true }),
 		mkdir(join(directory, "platform", "src"), { recursive: true }),
 		mkdir(join(directory, "platform", "dist"), { recursive: true }),
 		mkdir(join(directory, "platform", "node_modules", "package"), { recursive: true }),
@@ -216,6 +219,8 @@ test("explicit tree includes bypass outer ignore while keeping default exclusion
 	await Promise.all([
 		writeFile(join(directory, "AGENTS.yml"), "pi-tree:\n  includes: [platform]\n"),
 		writeFile(join(directory, ".gitignore"), "platform/\n"),
+		writeFile(join(directory, "platform", ".git", "config"), "metadata\n"),
+		writeFile(join(directory, "platform", ".nx", "cache"), "generated\n"),
 		writeFile(join(directory, "platform", "src", "index.ts"), "export {};\n"),
 		writeFile(join(directory, "platform", "dist", "index.js"), "generated\n"),
 		writeFile(join(directory, "platform", "node_modules", "package", "index.js"), "dependency\n"),
