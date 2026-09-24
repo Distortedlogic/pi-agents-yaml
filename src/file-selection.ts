@@ -102,6 +102,8 @@ export interface ResolvePreloadFileSelectionOptions<T extends PreloadFileSelecti
 
 export interface TreeFileSelectionConfiguration {
 	readonly excludes: readonly string[];
+	readonly explicitIncludes: boolean;
+	readonly includes: readonly string[];
 }
 
 export interface SelectedTreeFile {
@@ -182,15 +184,17 @@ export async function resolveFileSelection<T extends TreeFileSelectionConfigurat
 		if (source.section.name !== "pi-tree") {
 			throw new Error(`Tree file selection does not support the ${source.section.name} section.`);
 		}
+		const configuration = source.section.value;
 		const sessionRoot = source.rootPath === options.resolution.rootPath;
-		const excludes = [...DEFAULT_TREE_EXCLUDES, ...source.section.value.excludes].map(normalizePattern);
-		const files = await globby("**/*", {
+		const excludes = [...DEFAULT_TREE_EXCLUDES, ...configuration.excludes].map(normalizePattern);
+		const useGitignore = configuration.explicitIncludes !== true;
+		const files = await globby(configuration.includes.map(normalizePattern), {
 			absolute: true,
 			cwd: source.rootPath,
 			dot: true,
 			followSymbolicLinks: false,
-			gitignore: sessionRoot,
-			ignoreFiles: sessionRoot ? undefined : "**/.gitignore",
+			gitignore: useGitignore && sessionRoot,
+			ignoreFiles: useGitignore && !sessionRoot ? "**/.gitignore" : undefined,
 			ignore: excludes,
 			onlyFiles: true,
 			unique: true,

@@ -124,6 +124,8 @@ test("applies complete context and tree defaults", async (t) => {
 		assert.deepEqual(tree.sources[0]?.section.value, {
 			excludes: [...selectedCase.excludes],
 			extends: [],
+			explicitIncludes: false,
+			includes: ["**/*"],
 		});
 	}
 });
@@ -181,6 +183,28 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 	assert.deepEqual(
 		defaultTree.map((file) => file.displayPath),
 		[".gitignore", "blocked.txt", "package-lock.json", "visible.txt"],
+	);
+});
+
+test("explicit tree includes bypass outer ignore while keeping default exclusions", async (t) => {
+	const directory = await temporaryDirectory(t);
+	await Promise.all([
+		mkdir(join(directory, "platform", "src"), { recursive: true }),
+		mkdir(join(directory, "platform", "dist"), { recursive: true }),
+		mkdir(join(directory, "platform", "node_modules", "package"), { recursive: true }),
+	]);
+	await Promise.all([
+		writeFile(join(directory, "AGENTS.yml"), "pi-tree:\n  includes: [platform]\n"),
+		writeFile(join(directory, ".gitignore"), "platform/\n"),
+		writeFile(join(directory, "platform", "src", "index.ts"), "export {};\n"),
+		writeFile(join(directory, "platform", "dist", "index.js"), "generated\n"),
+		writeFile(join(directory, "platform", "node_modules", "package", "index.js"), "dependency\n"),
+	]);
+
+	const selected = await resolveFileSelection({ resolution: await resolvePiTreeSources({ rootPath: directory }) });
+	assert.deepEqual(
+		selected.map(({ displayPath }) => displayPath),
+		["platform/src/index.ts"],
 	);
 });
 
@@ -432,12 +456,17 @@ test("keeps explicit targets that lack the requested section and applies only ow
 			{
 				rootPath: await realpath(treeTarget),
 				name: "pi-tree",
-				value: { excludes: [], extends: [] },
+				value: { excludes: [], extends: [], explicitIncludes: false, includes: ["**/*"] },
 			},
 			{
 				rootPath: await realpath(directory),
 				name: "pi-tree",
-				value: { excludes: [], extends: ["./tree-target"] },
+				value: {
+					excludes: [],
+					extends: ["./tree-target"],
+					explicitIncludes: false,
+					includes: ["**/*"],
+				},
 			},
 		],
 	);
