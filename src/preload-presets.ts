@@ -6,7 +6,7 @@ import { loadAgentsDocument } from "./document.ts";
 import { type PiPreloadConfiguration, PiPreloadConfigurationSchema } from "./preload-schema.ts";
 
 const PRESET_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const MERGED_FIELDS = ["contexts", "excludes", "extends", "includes", "signatures"] as const;
+const MERGED_FIELDS = ["contexts", "extends"] as const;
 const PRESET_DIRECTORY = fileURLToPath(new URL("../presets", import.meta.url));
 
 export interface ResolvePreloadPresetsOptions {

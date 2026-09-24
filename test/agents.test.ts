@@ -7,7 +7,6 @@ import { CONFIG_DIR_NAME, SettingsManager } from "@earendil-works/pi-coding-agen
 import { Type } from "typebox";
 import {
 	AgentsConfigurationSchema,
-	DEFAULT_PRELOAD_EXCLUDES,
 	DEFAULT_TREE_EXCLUDES,
 	discoverAgentsSources,
 	loadAgentsSection,
@@ -76,75 +75,34 @@ test("resolves pi-preload and pi-tree from only their owned sections", async (t)
 	await Promise.all([
 		writeFile(
 			join(directory, "AGENTS.yml"),
-			[
-				"pi-preload:",
-				"  contexts: [dioxus]",
-				"  includes: [preload.txt]",
-				"  signatures: [signature.ts]",
-				"pi-tree:",
-				"  includes: [tree.txt]",
-				"",
-			].join("\n"),
+			["pi-preload:", "  contexts: [dioxus]", "pi-tree:", "  excludes: [excluded.txt]", ""].join("\n"),
 		),
-		writeFile(join(directory, "preload.txt"), "preload"),
-		writeFile(join(directory, "signature.ts"), "export const signature = true;\n"),
-		writeFile(join(directory, "tree.txt"), "tree"),
+		writeFile(join(directory, "visible.txt"), "visible"),
+		writeFile(join(directory, "excluded.txt"), "excluded"),
 	]);
 
 	const preload = await resolvePiPreloadSources({ rootPath: directory });
 	const tree = await resolvePiTreeSources({ rootPath: directory });
 	assert.equal(preload.sources[0]?.section.name, "pi-preload");
 	assert.equal(tree.sources[0]?.section.name, "pi-tree");
-	assert.deepEqual(preload.sources[0]?.section.value.includes, ["preload.txt"]);
-	assert.deepEqual(preload.sources[0]?.section.value.signatures, ["signature.ts"]);
-	assert.deepEqual(tree.sources[0]?.section.value.includes, ["tree.txt"]);
-	assert.deepEqual(
-		(await resolveFileSelection({ resolution: preload })).map((file) => file.displayPath),
-		["preload.txt", "signature.ts"],
-	);
+	assert.deepEqual(preload.sources[0]?.section.value.contexts, ["dioxus"]);
+	assert.deepEqual(tree.sources[0]?.section.value.excludes, ["excluded.txt"]);
 	assert.deepEqual(
 		(await resolveFileSelection({ resolution: tree })).map((file) => file.displayPath),
-		["tree.txt"],
+		["visible.txt"],
 	);
 });
 
-test("applies complete preload and tree defaults without overriding explicit includes", async (t) => {
+test("applies complete context and tree defaults", async (t) => {
 	const directory = await temporaryDirectory(t);
 	const cases = [
+		{ name: "missing", source: "other-extension: {}\n", contexts: [], excludes: [] },
+		{ name: "empty", source: "pi-preload: {}\npi-tree: {}\n", contexts: [], excludes: [] },
 		{
-			name: "missing",
-			source: "other-extension: {}\n",
-			explicitIncludes: false,
-			preloadIncludes: [],
-			treeIncludes: ["**/*"],
-		},
-		{
-			name: "empty",
-			source: "pi-preload: {}\npi-tree: {}\n",
-			explicitIncludes: false,
-			preloadIncludes: [],
-			treeIncludes: ["**/*"],
-		},
-		{
-			name: "omitted-includes",
-			source: "pi-preload:\n  contexts: []\npi-tree:\n  extends: []\n",
-			explicitIncludes: false,
-			preloadIncludes: [],
-			treeIncludes: ["**/*"],
-		},
-		{
-			name: "explicit-empty",
-			source: "pi-preload:\n  includes: []\npi-tree:\n  includes: []\n",
-			explicitIncludes: true,
-			preloadIncludes: [],
-			treeIncludes: [],
-		},
-		{
-			name: "explicit-includes",
-			source: "pi-preload:\n  includes: [preload.txt]\npi-tree:\n  includes: [tree.txt]\n",
-			explicitIncludes: true,
-			preloadIncludes: ["preload.txt"],
-			treeIncludes: ["tree.txt"],
+			name: "configured",
+			source: "pi-preload:\n  contexts: [dioxus]\npi-tree:\n  excludes: [generated/**]\n",
+			contexts: ["dioxus"],
+			excludes: ["generated/**"],
 		},
 	] as const;
 
@@ -155,29 +113,21 @@ test("applies complete preload and tree defaults without overriding explicit inc
 		const preload = await resolvePiPreloadSources({ rootPath: root });
 		const tree = await resolvePiTreeSources({ rootPath: root });
 		assert.deepEqual(preload.sources[0]?.section.value, {
-			contexts: [],
-			excludes: [],
+			contexts: [...selectedCase.contexts],
 			extends: [],
-			explicitIncludes: selectedCase.explicitIncludes,
-			includes: [...selectedCase.preloadIncludes],
 			presets: [],
-			signatures: [],
 		});
 		assert.deepEqual(tree.sources[0]?.section.value, {
-			excludes: [],
+			excludes: [...selectedCase.excludes],
 			extends: [],
-			explicitIncludes: selectedCase.explicitIncludes,
-			includes: [...selectedCase.treeIncludes],
 		});
 	}
 });
 
-test("lets explicit includes override Git ignore before configured excludes", async (t) => {
+test("selects the full Git-visible tree before configured excludes", async (t) => {
 	for (const path of ["**/.tasks/**", "PRELOAD.md"]) {
-		assert.equal(DEFAULT_PRELOAD_EXCLUDES.includes(path), true);
 		assert.equal(DEFAULT_TREE_EXCLUDES.includes(path), true);
 	}
-	assert.equal(DEFAULT_PRELOAD_EXCLUDES.includes("**/package-lock.json"), true);
 	assert.equal(DEFAULT_TREE_EXCLUDES.includes("**/package-lock.json"), false);
 
 	const directory = await temporaryDirectory(t);
@@ -187,10 +137,7 @@ test("lets explicit includes override Git ignore before configured excludes", as
 		mkdir(join(directory, "nested", ".tasks"), { recursive: true }),
 	]);
 	await Promise.all([
-		writeFile(
-			join(directory, "AGENTS.yml"),
-			"pi-preload:\n  includes: ['**/*']\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\npi-tree:\n  includes: ['**/*']\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\n",
-		),
+		writeFile(join(directory, "AGENTS.yml"), "pi-tree:\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\n"),
 		writeFile(join(directory, ".gitignore"), "ignored/\n"),
 		writeFile(join(directory, "visible.txt"), "visible"),
 		writeFile(join(directory, "blocked.txt"), "blocked"),
@@ -204,29 +151,19 @@ test("lets explicit includes override Git ignore before configured excludes", as
 		writeFile(join(directory, "nested", ".tasks", "plan.md"), "nested task"),
 	]);
 
-	const preload = await resolveFileSelection({
-		resolution: await resolvePiPreloadSources({ rootPath: directory }),
-	});
 	const tree = await resolveFileSelection({ resolution: await resolvePiTreeSources({ rootPath: directory }) });
 	assert.deepEqual(
-		preload.map((file) => file.displayPath),
-		["ignored/selected.txt", "visible.txt"],
-	);
-	assert.deepEqual(
 		tree.map((file) => file.displayPath),
-		["ignored/selected.txt", "package-lock.json", "visible.txt"],
+		["package-lock.json", "visible.txt"],
 	);
 
-	await writeFile(
-		join(directory, "AGENTS.yml"),
-		"pi-tree:\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\n",
-	);
+	await writeFile(join(directory, "AGENTS.yml"), "pi-tree: {}\n");
 	const defaultTree = await resolveFileSelection({
 		resolution: await resolvePiTreeSources({ rootPath: directory }),
 	});
 	assert.deepEqual(
 		defaultTree.map((file) => file.displayPath),
-		["package-lock.json", "visible.txt"],
+		[".gitignore", "blocked.txt", "package-lock.json", "visible.txt"],
 	);
 });
 
@@ -322,23 +259,12 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 				"  presets: [base, extra, dioxus-rust]",
 				"  extends: [./child, ./child-alias]",
 				"  contexts: [root-local]",
-				"  includes: ['*.txt']",
-				"  excludes: [root-only.txt]",
 				"",
 			].join("\n"),
 		),
-		writeFile(
-			join(child, "AGENTS.yml"),
-			"pi-preload:\n  presets: [dioxus-rust]\n  contexts: [child-context]\n  includes: ['*.txt']\n",
-		),
-		writeFile(
-			join(presetDirectory, "base.yml"),
-			"contexts: [base-context]\nincludes: [base/*.txt]\nexcludes: [base-ignore.txt]\n",
-		),
-		writeFile(
-			join(presetDirectory, "extra.yml"),
-			"contexts: [extra-context, base-context]\nincludes: [extra/*.txt]\nexcludes: [extra-ignore.txt]\n",
-		),
+		writeFile(join(child, "AGENTS.yml"), "pi-preload:\n  presets: [dioxus-rust]\n  contexts: [child-context]\n"),
+		writeFile(join(presetDirectory, "base.yml"), "contexts: [base-context]\n"),
+		writeFile(join(presetDirectory, "extra.yml"), "contexts: [extra-context, base-context]\n"),
 		symlink(child, childAlias, "dir"),
 	]);
 
@@ -349,8 +275,6 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 	);
 	const rootConfiguration = resolution.sources.at(-1)?.section?.value;
 	assert.deepEqual(rootConfiguration?.contexts, ["base-context", "extra-context", "dioxus", "root-local"]);
-	assert.deepEqual(rootConfiguration?.includes, ["base/*.txt", "extra/*.txt", "*.txt"]);
-	assert.deepEqual(rootConfiguration?.excludes, ["base-ignore.txt", "extra-ignore.txt", "root-only.txt"]);
 	assert.deepEqual(
 		resolution.sources.flatMap((source) =>
 			(source.section?.value.contexts ?? []).map((context) => ({ context, rootPath: source.rootPath })),
@@ -366,34 +290,6 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 	);
 });
 
-test("pi-extension preset provides native documentation and critical public signatures", async (t) => {
-	const directory = await temporaryDirectory(t);
-	const resolution = await resolvePiPreloadSources({
-		rootPath: directory,
-		rootValue: { presets: ["pi-extension"] },
-	});
-	const configuration = resolution.sources[0]?.section.value;
-	assert.ok(configuration);
-	for (const document of ["extensions", "packages", "prompt-templates", "settings", "skills", "themes"]) {
-		assert.equal(
-			configuration.includes.some((pattern) => pattern.includes(document)),
-			true,
-			document,
-		);
-	}
-	assert.deepEqual(configuration.signatures, [
-		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/index.ts",
-		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/core/extensions/types.ts",
-	]);
-	assert.equal(
-		configuration.includes.every(
-			(pattern) =>
-				pattern.startsWith("/home/entropybender/coding/3rd/pi/packages/coding-agent/docs/") && pattern.endsWith(".md"),
-		),
-		true,
-	);
-});
-
 test("keeps explicit targets that lack the requested section and applies only owned defaults", async (t) => {
 	const directory = await temporaryDirectory(t);
 	const preloadTarget = join(directory, "preload-target");
@@ -402,10 +298,10 @@ test("keeps explicit targets that lack the requested section and applies only ow
 	await Promise.all([
 		writeFile(
 			join(directory, "AGENTS.yml"),
-			"pi-preload:\n  extends: [./preload-target]\npi-tree:\n  extends: [./tree-target]\n  includes: []\n",
+			"pi-preload:\n  extends: [./preload-target]\npi-tree:\n  extends: [./tree-target]\n",
 		),
-		writeFile(join(preloadTarget, "AGENTS.yml"), "pi-tree:\n  includes: [tree-only.txt]\n"),
-		writeFile(join(treeTarget, "AGENTS.yml"), "pi-preload:\n  includes: [preload-only.txt]\n"),
+		writeFile(join(preloadTarget, "AGENTS.yml"), "pi-tree: {}\n"),
+		writeFile(join(treeTarget, "AGENTS.yml"), "pi-preload:\n  contexts: [dioxus]\n"),
 	]);
 
 	const preload = await resolvePiPreloadSources({ rootPath: directory });
@@ -422,12 +318,8 @@ test("keeps explicit targets that lack the requested section and applies only ow
 				name: "pi-preload",
 				value: {
 					contexts: [],
-					excludes: [],
 					extends: [],
-					explicitIncludes: false,
-					includes: [],
 					presets: [],
-					signatures: [],
 				},
 			},
 			{
@@ -435,12 +327,8 @@ test("keeps explicit targets that lack the requested section and applies only ow
 				name: "pi-preload",
 				value: {
 					contexts: [],
-					excludes: [],
 					extends: ["./preload-target"],
-					explicitIncludes: false,
-					includes: [],
 					presets: [],
-					signatures: [],
 				},
 			},
 		],
@@ -455,18 +343,18 @@ test("keeps explicit targets that lack the requested section and applies only ow
 			{
 				rootPath: await realpath(treeTarget),
 				name: "pi-tree",
-				value: { excludes: [], extends: [], explicitIncludes: false, includes: ["**/*"] },
+				value: { excludes: [], extends: [] },
 			},
 			{
 				rootPath: await realpath(directory),
 				name: "pi-tree",
-				value: { excludes: [], extends: ["./tree-target"], explicitIncludes: true, includes: [] },
+				value: { excludes: [], extends: ["./tree-target"] },
 			},
 		],
 	);
 });
 
-test("selects explicit full and signature files across an ignored meta repository", async (t) => {
+test("selects full files across ignored and extended roots", async (t) => {
 	const directory = await temporaryDirectory(t);
 	const root = join(directory, "meta");
 	const child = join(root, "packages", "tool");
@@ -479,98 +367,39 @@ test("selects explicit full and signature files across an ignored meta repositor
 		mkdir(nested, { recursive: true }),
 	]);
 	await Promise.all([
-		writeFile(
-			join(root, "AGENTS.yml"),
-			[
-				"pi-preload:",
-				"  extends: [./packages/tool, ./tool-alias]",
-				"  includes: [root-full.txt]",
-				"  signatures: [root-signature.ts]",
-				"",
-			].join("\n"),
-		),
+		writeFile(join(root, "AGENTS.yml"), "pi-tree:\n  extends: [./packages/tool, ./tool-alias]\n"),
 		writeFile(
 			join(child, "AGENTS.yml"),
-			[
-				"pi-preload:",
-				"  extends: [./nested]",
-				"  includes: [src/**/*.ts]",
-				"  signatures: [src/**/*.ts, types/**/*.ts]",
-				"  excludes: [src/excluded.ts]",
-				"",
-			].join("\n"),
+			"pi-tree:\n  extends: [./nested]\n  excludes: [src/excluded.ts, nested/excluded.ts]\n",
 		),
-		writeFile(
-			join(nested, "AGENTS.yml"),
-			"pi-preload:\n  includes: [full.txt]\n  signatures: ['*.ts']\n  excludes: [excluded.ts]\n",
-		),
-		writeFile(join(root, ".gitignore"), "packages/\ntool-alias/\nroot-full.txt\nroot-signature.ts\n"),
-		writeFile(join(root, "root-full.txt"), "root full"),
-		writeFile(join(root, "root-signature.ts"), "export {};\n"),
-		writeFile(join(root, "sentinel.md"), "unselected"),
+		writeFile(join(nested, "AGENTS.yml"), "pi-tree:\n  excludes: [excluded.ts]\n"),
+		writeFile(join(root, ".gitignore"), "packages/\ntool-alias/\nroot-full.txt\n"),
+		writeFile(join(root, "root-full.txt"), "ignored"),
+		writeFile(join(root, "sentinel.md"), "root"),
 		writeFile(join(child, "src", "full.ts"), "export {};\n"),
 		writeFile(join(child, "src", "excluded.ts"), "export {};\n"),
 		writeFile(join(child, "types", "signature.ts"), "export {};\n"),
-		writeFile(join(child, "sentinel.md"), "unselected"),
+		writeFile(join(child, "sentinel.md"), "child"),
 		writeFile(join(nested, "full.txt"), "nested full"),
 		writeFile(join(nested, "signature.ts"), "export {};\n"),
 		writeFile(join(nested, "excluded.ts"), "export {};\n"),
-		writeFile(join(nested, "sentinel.md"), "unselected"),
+		writeFile(join(nested, "sentinel.md"), "nested"),
 		symlink(child, childAlias, "dir"),
 	]);
 	await symlink(join(child, "src", "full.ts"), join(child, "types", "linked.ts"));
 
-	const resolution = await resolvePiPreloadSources({ rootPath: root });
+	const resolution = await resolvePiTreeSources({ rootPath: root });
 	const selected = await resolveFileSelection({ resolution });
+	const paths = selected.map(({ displayPath }) => displayPath);
 	assert.equal(new Set(selected.map(({ absolutePath }) => absolutePath)).size, selected.length);
 	assert.equal(Object.isFrozen(selected), true);
 	assert.equal(selected.every(Object.isFrozen), true);
-	assert.deepEqual(
-		selected.map(({ displayPath, mode, sourceRoot, configurationPath }) => ({
-			displayPath,
-			mode,
-			sourceRoot,
-			configurationPath,
-		})),
-		[
-			{
-				displayPath: "packages/tool/nested/full.txt",
-				mode: "full",
-				sourceRoot: await realpath(nested),
-				configurationPath: join(await realpath(nested), "AGENTS.yml"),
-			},
-			{
-				displayPath: "packages/tool/nested/signature.ts",
-				mode: "signature",
-				sourceRoot: await realpath(nested),
-				configurationPath: join(await realpath(nested), "AGENTS.yml"),
-			},
-			{
-				displayPath: "packages/tool/src/full.ts",
-				mode: "full",
-				sourceRoot: await realpath(child),
-				configurationPath: join(await realpath(child), "AGENTS.yml"),
-			},
-			{
-				displayPath: "packages/tool/types/signature.ts",
-				mode: "signature",
-				sourceRoot: await realpath(child),
-				configurationPath: join(await realpath(child), "AGENTS.yml"),
-			},
-			{
-				displayPath: "root-full.txt",
-				mode: "full",
-				sourceRoot: await realpath(root),
-				configurationPath: join(await realpath(root), "AGENTS.yml"),
-			},
-			{
-				displayPath: "root-signature.ts",
-				mode: "signature",
-				sourceRoot: await realpath(root),
-				configurationPath: join(await realpath(root), "AGENTS.yml"),
-			},
-		],
-	);
+	assert.ok(paths.includes("sentinel.md"));
+	assert.ok(paths.includes("packages/tool/src/full.ts"));
+	assert.ok(paths.includes("packages/tool/types/signature.ts"));
+	assert.ok(paths.includes("packages/tool/nested/full.txt"));
+	assert.ok(!paths.includes("root-full.txt"));
+	assert.ok(!paths.some((path) => path.endsWith("excluded.ts") || path.endsWith("linked.ts")));
 });
 
 test("rejects canonical extends cycles with the declaring source path", async (t) => {
