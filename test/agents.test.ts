@@ -360,19 +360,15 @@ test("pi-extension preset provides native documentation and critical public sign
 	]);
 });
 
-test("keeps explicit targets that lack the requested section and applies only owned defaults", async (t) => {
+test("keeps explicit targets without AGENTS.yml and applies only owned defaults", async (t) => {
 	const directory = await temporaryDirectory(t);
 	const preloadTarget = join(directory, "preload-target");
 	const treeTarget = join(directory, "tree-target");
 	await Promise.all([mkdir(preloadTarget), mkdir(treeTarget)]);
-	await Promise.all([
-		writeFile(
-			join(directory, "AGENTS.yml"),
-			"pi-preload:\n  extends: [./preload-target]\npi-tree:\n  extends: [./tree-target]\n",
-		),
-		writeFile(join(preloadTarget, "AGENTS.yml"), "pi-tree: {}\n"),
-		writeFile(join(treeTarget, "AGENTS.yml"), "pi-preload:\n  contexts: [dioxus]\n"),
-	]);
+	await writeFile(
+		join(directory, "AGENTS.yml"),
+		"pi-preload:\n  extends: [./preload-target]\npi-tree:\n  extends: [./tree-target]\n",
+	);
 
 	const preload = await resolvePiPreloadSources({ rootPath: directory });
 	const tree = await resolvePiTreeSources({ rootPath: directory });
