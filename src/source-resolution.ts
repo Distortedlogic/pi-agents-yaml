@@ -162,10 +162,7 @@ function resolvedSectionSources<T>(resolution: ResolvedAgentsSources<T>): Resolv
 export async function resolvePiPreloadSources(
 	options: ResolvePiPreloadSourcesOptions,
 ): Promise<ResolvedSectionSources<ResolvedPiPreloadConfiguration>> {
-	const resolution = await resolveAgentsSources<
-		typeof PiPreloadConfigurationSchema,
-		ResolvedPiPreloadConfiguration
-	>({
+	const resolution = await resolveAgentsSources<typeof PiPreloadConfigurationSchema, ResolvedPiPreloadConfiguration>({
 		rootPath: options.rootPath,
 		sectionName: "pi-preload",
 		schema: PiPreloadConfigurationSchema,
