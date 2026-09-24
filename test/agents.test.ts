@@ -76,7 +76,9 @@ test("resolves pi-preload and pi-tree from only their owned sections", async (t)
 	await Promise.all([
 		writeFile(
 			join(directory, "AGENTS.yml"),
-			["pi-preload:", "  contexts: [dioxus]", "pi-tree:", "  excludes: [excluded.txt]", ""].join("\n"),
+			["pi-preload:", "  contexts: [dioxus]", "pi-tree:", "  collapse: [src]", "  excludes: [excluded.txt]", ""].join(
+				"\n",
+			),
 		),
 		writeFile(join(directory, "visible.txt"), "visible"),
 		writeFile(join(directory, "excluded.txt"), "excluded"),
@@ -87,6 +89,7 @@ test("resolves pi-preload and pi-tree from only their owned sections", async (t)
 	assert.equal(preload.sources[0]?.section.name, "pi-preload");
 	assert.equal(tree.sources[0]?.section.name, "pi-tree");
 	assert.deepEqual(preload.sources[0]?.section.value.contexts, ["dioxus"]);
+	assert.deepEqual(tree.sources[0]?.section.value.collapse, ["src"]);
 	assert.deepEqual(tree.sources[0]?.section.value.excludes, ["excluded.txt"]);
 	assert.deepEqual(
 		(await resolveFileSelection({ resolution: tree })).map((file) => file.displayPath),
@@ -97,12 +100,14 @@ test("resolves pi-preload and pi-tree from only their owned sections", async (t)
 test("applies complete context and tree defaults", async (t) => {
 	const directory = await temporaryDirectory(t);
 	const cases = [
-		{ name: "missing", source: "other-extension: {}\n", contexts: [], excludes: [] },
-		{ name: "empty", source: "pi-preload: {}\npi-tree: {}\n", contexts: [], excludes: [] },
+		{ name: "missing", source: "other-extension: {}\n", contexts: [], collapse: [], excludes: [] },
+		{ name: "empty", source: "pi-preload: {}\npi-tree: {}\n", contexts: [], collapse: [], excludes: [] },
 		{
 			name: "configured",
-			source: "pi-preload:\n  contexts: [dioxus]\npi-tree:\n  excludes: [generated/**]\n",
+			source:
+				"pi-preload:\n  contexts: [dioxus]\npi-tree:\n  collapse: [apps/*, '!apps/selected']\n  excludes: [generated/**]\n",
 			contexts: ["dioxus"],
+			collapse: ["apps/*", "!apps/selected"],
 			excludes: ["generated/**"],
 		},
 	] as const;
@@ -122,6 +127,7 @@ test("applies complete context and tree defaults", async (t) => {
 			signatures: [],
 		});
 		assert.deepEqual(tree.sources[0]?.section.value, {
+			collapse: [...selectedCase.collapse],
 			excludes: [...selectedCase.excludes],
 			extends: [],
 			explicitIncludes: false,
@@ -470,12 +476,13 @@ test("keeps explicit targets that lack the requested section and applies only ow
 			{
 				rootPath: await realpath(treeTarget),
 				name: "pi-tree",
-				value: { excludes: [], extends: [], explicitIncludes: false, includes: ["**/*"] },
+				value: { collapse: [], excludes: [], extends: [], explicitIncludes: false, includes: ["**/*"] },
 			},
 			{
 				rootPath: await realpath(directory),
 				name: "pi-tree",
 				value: {
+					collapse: [],
 					excludes: [],
 					extends: ["./tree-target"],
 					explicitIncludes: false,

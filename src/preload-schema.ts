@@ -26,6 +26,7 @@ export const PiPreloadPresetConfigurationSchema = Type.Object(
 
 export const PiTreeConfigurationSchema = Type.Object(
 	{
+		collapse: Type.Optional(StringListSchema),
 		excludes: Type.Optional(StringListSchema),
 		extends: Type.Optional(StringListSchema),
 		includes: Type.Optional(StringListSchema),
@@ -47,6 +48,7 @@ export interface ResolvedPiPreloadConfiguration {
 }
 
 export interface ResolvedPiTreeConfiguration {
+	readonly collapse: readonly string[];
 	readonly excludes: readonly string[];
 	readonly extends: readonly string[];
 	readonly explicitIncludes: boolean;
@@ -63,6 +65,7 @@ export const PI_PRELOAD_CONFIGURATION_DEFAULTS: ResolvedPiPreloadConfiguration =
 });
 
 export const PI_TREE_CONFIGURATION_DEFAULTS: ResolvedPiTreeConfiguration = Object.freeze({
+	collapse: Object.freeze([]),
 	excludes: Object.freeze([]),
 	extends: Object.freeze([]),
 	explicitIncludes: false,
@@ -84,6 +87,7 @@ export function resolvePiPreloadConfiguration(
 
 export function resolvePiTreeConfiguration(configuration?: PiTreeConfiguration): ResolvedPiTreeConfiguration {
 	return Object.freeze({
+		collapse: Object.freeze([...(configuration?.collapse ?? PI_TREE_CONFIGURATION_DEFAULTS.collapse)]),
 		excludes: Object.freeze([...(configuration?.excludes ?? PI_TREE_CONFIGURATION_DEFAULTS.excludes)]),
 		extends: Object.freeze([...(configuration?.extends ?? PI_TREE_CONFIGURATION_DEFAULTS.extends)]),
 		explicitIncludes: configuration?.includes !== undefined,
