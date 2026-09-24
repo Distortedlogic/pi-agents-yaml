@@ -135,11 +135,21 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 	assert.equal(DEFAULT_TREE_EXCLUDES.includes("**/package-lock.json"), false);
 
 	const directory = await temporaryDirectory(t);
+	const generatedDirectories = [
+		"node_modules",
+		"dist",
+		"target",
+		"__pycache__",
+		".next",
+		".terraform",
+		".venv",
+		"coverage",
+		"playwright-report",
+	];
 	await Promise.all([
 		mkdir(join(directory, ".tasks")),
 		mkdir(join(directory, "ignored")),
-		mkdir(join(directory, "dist")),
-		mkdir(join(directory, "node_modules", "package"), { recursive: true }),
+		...generatedDirectories.map((path) => mkdir(join(directory, path), { recursive: true })),
 		mkdir(join(directory, "nested", ".tasks"), { recursive: true }),
 	]);
 	await Promise.all([
@@ -149,8 +159,7 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 		writeFile(join(directory, "blocked.txt"), "blocked"),
 		writeFile(join(directory, "ignored", "excluded.txt"), "excluded"),
 		writeFile(join(directory, "ignored", "selected.txt"), "selected"),
-		writeFile(join(directory, "dist", "generated.js"), "generated"),
-		writeFile(join(directory, "node_modules", "package", "index.js"), "dependency"),
+		...generatedDirectories.map((path) => writeFile(join(directory, path, "generated.txt"), "generated")),
 		writeFile(join(directory, "package-lock.json"), "{}\n"),
 		writeFile(join(directory, "PRELOAD.md"), "generated"),
 		writeFile(join(directory, "TREE.txt"), "generated"),
