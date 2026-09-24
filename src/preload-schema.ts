@@ -12,6 +12,18 @@ export const PiPreloadConfigurationSchema = Type.Object(
 	exact,
 );
 
+export const PiPreloadPresetConfigurationSchema = Type.Object(
+	{
+		contexts: Type.Optional(StringListSchema),
+		excludes: Type.Optional(StringListSchema),
+		extends: Type.Optional(StringListSchema),
+		includes: Type.Optional(StringListSchema),
+		presets: Type.Optional(StringListSchema),
+		signatures: Type.Optional(StringListSchema),
+	},
+	exact,
+);
+
 export const PiTreeConfigurationSchema = Type.Object(
 	{
 		excludes: Type.Optional(StringListSchema),
@@ -21,12 +33,16 @@ export const PiTreeConfigurationSchema = Type.Object(
 );
 
 export type PiPreloadConfiguration = Static<typeof PiPreloadConfigurationSchema>;
+export type PiPreloadPresetConfiguration = Static<typeof PiPreloadPresetConfigurationSchema>;
 export type PiTreeConfiguration = Static<typeof PiTreeConfigurationSchema>;
 
 export interface ResolvedPiPreloadConfiguration {
 	readonly contexts: readonly string[];
+	readonly excludes: readonly string[];
 	readonly extends: readonly string[];
+	readonly includes: readonly string[];
 	readonly presets: readonly string[];
+	readonly signatures: readonly string[];
 }
 
 export interface ResolvedPiTreeConfiguration {
@@ -36,8 +52,11 @@ export interface ResolvedPiTreeConfiguration {
 
 export const PI_PRELOAD_CONFIGURATION_DEFAULTS: ResolvedPiPreloadConfiguration = Object.freeze({
 	contexts: Object.freeze([]),
+	excludes: Object.freeze([]),
 	extends: Object.freeze([]),
+	includes: Object.freeze([]),
 	presets: Object.freeze([]),
+	signatures: Object.freeze([]),
 });
 
 export const PI_TREE_CONFIGURATION_DEFAULTS: ResolvedPiTreeConfiguration = Object.freeze({
@@ -45,11 +64,16 @@ export const PI_TREE_CONFIGURATION_DEFAULTS: ResolvedPiTreeConfiguration = Objec
 	extends: Object.freeze([]),
 });
 
-export function resolvePiPreloadConfiguration(configuration?: PiPreloadConfiguration): ResolvedPiPreloadConfiguration {
+export function resolvePiPreloadConfiguration(
+	configuration?: PiPreloadPresetConfiguration,
+): ResolvedPiPreloadConfiguration {
 	return Object.freeze({
 		contexts: Object.freeze([...(configuration?.contexts ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.contexts)]),
+		excludes: Object.freeze([...(configuration?.excludes ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.excludes)]),
 		extends: Object.freeze([...(configuration?.extends ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.extends)]),
+		includes: Object.freeze([...(configuration?.includes ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.includes)]),
 		presets: Object.freeze([...(configuration?.presets ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.presets)]),
+		signatures: Object.freeze([...(configuration?.signatures ?? PI_PRELOAD_CONFIGURATION_DEFAULTS.signatures)]),
 	});
 }
 

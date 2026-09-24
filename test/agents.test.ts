@@ -16,6 +16,7 @@ import {
 	resolveFileSelection,
 	resolvePiPreloadSources,
 	resolvePiTreeSources,
+	resolvePreloadFileSelection,
 } from "../src/index.ts";
 
 const SelectedSectionSchema = Type.Object(
@@ -114,8 +115,11 @@ test("applies complete context and tree defaults", async (t) => {
 		const tree = await resolvePiTreeSources({ rootPath: root });
 		assert.deepEqual(preload.sources[0]?.section.value, {
 			contexts: [...selectedCase.contexts],
+			excludes: [],
 			extends: [],
+			includes: [],
 			presets: [],
+			signatures: [],
 		});
 		assert.deepEqual(tree.sources[0]?.section.value, {
 			excludes: [...selectedCase.excludes],
@@ -263,8 +267,14 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 			].join("\n"),
 		),
 		writeFile(join(child, "AGENTS.yml"), "pi-preload:\n  presets: [dioxus-rust]\n  contexts: [child-context]\n"),
-		writeFile(join(presetDirectory, "base.yml"), "contexts: [base-context]\n"),
-		writeFile(join(presetDirectory, "extra.yml"), "contexts: [extra-context, base-context]\n"),
+		writeFile(
+			join(presetDirectory, "base.yml"),
+			"contexts: [base-context]\nincludes: [base/*.txt]\nexcludes: [base-ignore.txt]\n",
+		),
+		writeFile(
+			join(presetDirectory, "extra.yml"),
+			"contexts: [extra-context, base-context]\nsignatures: [extra/*.ts]\nexcludes: [extra-ignore.txt]\n",
+		),
 		symlink(child, childAlias, "dir"),
 	]);
 
@@ -275,6 +285,9 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 	);
 	const rootConfiguration = resolution.sources.at(-1)?.section?.value;
 	assert.deepEqual(rootConfiguration?.contexts, ["base-context", "extra-context", "dioxus", "root-local"]);
+	assert.deepEqual(rootConfiguration?.includes, ["base/*.txt"]);
+	assert.deepEqual(rootConfiguration?.signatures, ["extra/*.ts"]);
+	assert.deepEqual(rootConfiguration?.excludes, ["base-ignore.txt", "extra-ignore.txt"]);
 	assert.deepEqual(
 		resolution.sources.flatMap((source) =>
 			(source.section?.value.contexts ?? []).map((context) => ({ context, rootPath: source.rootPath })),
@@ -288,6 +301,63 @@ test("resolves preload presets and extended roots in stable order", async (t) =>
 			{ context: "root-local", rootPath: await realpath(root) },
 		],
 	);
+});
+
+test("rejects preload file-selection fields in public AGENTS.yml", async (t) => {
+	const directory = await temporaryDirectory(t);
+	for (const field of ["includes", "excludes", "signatures"] as const) {
+		await writeFile(join(directory, "AGENTS.yml"), `pi-preload:\n  ${field}: ['**/*']\n`);
+		await assert.rejects(resolvePiPreloadSources({ rootPath: directory }), /Invalid configuration.*pi-preload/);
+	}
+});
+
+test("selects full and signature files from presets only", async (t) => {
+	const directory = await temporaryDirectory(t);
+	const presetDirectory = join(directory, "presets");
+	await mkdir(presetDirectory);
+	await Promise.all([
+		writeFile(
+			join(presetDirectory, "files.yml"),
+			"includes: [full.ts]\nsignatures: ['*.ts']\nexcludes: [excluded.ts]\n",
+		),
+		writeFile(join(directory, "full.ts"), "export function full() { return true; }\n"),
+		writeFile(join(directory, "signature.ts"), "export function signature() { return true; }\n"),
+		writeFile(join(directory, "excluded.ts"), "export function excluded() { return true; }\n"),
+	]);
+
+	const resolution = await resolvePiPreloadSources({
+		rootPath: directory,
+		rootValue: { presets: ["files"] },
+		presetDirectory,
+	});
+	assert.deepEqual(
+		(await resolvePreloadFileSelection({ resolution })).map(({ displayPath, mode }) => ({ displayPath, mode })),
+		[
+			{ displayPath: "full.ts", mode: "full" },
+			{ displayPath: "signature.ts", mode: "signature" },
+		],
+	);
+});
+
+test("pi-extension preset provides native documentation and critical public signatures", async (t) => {
+	const directory = await temporaryDirectory(t);
+	const resolution = await resolvePiPreloadSources({
+		rootPath: directory,
+		rootValue: { presets: ["pi-extension"] },
+	});
+	const configuration = resolution.sources[0]?.section.value;
+	assert.ok(configuration);
+	for (const document of ["extensions", "packages", "prompt-templates", "settings", "skills", "themes"]) {
+		assert.equal(
+			configuration.includes.some((pattern) => pattern.includes(document)),
+			true,
+			document,
+		);
+	}
+	assert.deepEqual(configuration.signatures, [
+		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/index.ts",
+		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/core/extensions/types.ts",
+	]);
 });
 
 test("keeps explicit targets that lack the requested section and applies only owned defaults", async (t) => {
@@ -318,8 +388,11 @@ test("keeps explicit targets that lack the requested section and applies only ow
 				name: "pi-preload",
 				value: {
 					contexts: [],
+					excludes: [],
 					extends: [],
+					includes: [],
 					presets: [],
+					signatures: [],
 				},
 			},
 			{
@@ -327,8 +400,11 @@ test("keeps explicit targets that lack the requested section and applies only ow
 				name: "pi-preload",
 				value: {
 					contexts: [],
+					excludes: [],
 					extends: ["./preload-target"],
+					includes: [],
 					presets: [],
+					signatures: [],
 				},
 			},
 		],
