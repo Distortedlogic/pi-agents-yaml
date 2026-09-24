@@ -138,6 +138,8 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 	await Promise.all([
 		mkdir(join(directory, ".tasks")),
 		mkdir(join(directory, "ignored")),
+		mkdir(join(directory, "dist")),
+		mkdir(join(directory, "node_modules", "package"), { recursive: true }),
 		mkdir(join(directory, "nested", ".tasks"), { recursive: true }),
 	]);
 	await Promise.all([
@@ -147,6 +149,8 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 		writeFile(join(directory, "blocked.txt"), "blocked"),
 		writeFile(join(directory, "ignored", "excluded.txt"), "excluded"),
 		writeFile(join(directory, "ignored", "selected.txt"), "selected"),
+		writeFile(join(directory, "dist", "generated.js"), "generated"),
+		writeFile(join(directory, "node_modules", "package", "index.js"), "dependency"),
 		writeFile(join(directory, "package-lock.json"), "{}\n"),
 		writeFile(join(directory, "PRELOAD.md"), "generated"),
 		writeFile(join(directory, "TREE.txt"), "generated"),
