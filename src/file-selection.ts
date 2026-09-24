@@ -43,6 +43,10 @@ export const DEFAULT_TREE_EXCLUDES = Object.freeze([
 	"**/.tasks/**",
 	"**/.pi/readcache/**",
 	"**/.pi/tmp/**",
+	"**/dist",
+	"**/dist/**",
+	"**/node_modules",
+	"**/node_modules/**",
 	"PRELOAD.md",
 	"TREE.txt",
 ]);
