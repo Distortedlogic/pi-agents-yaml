@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { realpath } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { Static, TSchema } from "typebox";
@@ -127,9 +126,7 @@ export async function resolveAgentsSources<TSchemaType extends TSchema, TResolve
 						options.sectionName,
 						options.schema,
 					)
-				: existsSync(sourcePath)
-					? await loadAgentsSection(sourcePath, options.sectionName, options.schema, { signal: options.signal })
-					: undefined;
+				: await loadAgentsSection(sourcePath, options.sectionName, options.schema, { signal: options.signal });
 		const section = options.resolveSection
 			? await options.resolveSection(loadedSection, {
 					depth,
