@@ -140,13 +140,26 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 	const generatedDirectories = [
 		"node_modules",
 		"dist",
+		"dist-swagger",
+		"out-tsc",
+		"swagger",
 		"target",
+		"test-output",
 		"__pycache__",
 		".next",
 		".terraform",
 		".venv",
 		"coverage",
 		"playwright-report",
+	];
+	const generatedFiles = [
+		"tsconfig.tsbuildinfo",
+		"coverage.json",
+		"junit.xml",
+		"junit-worker.xml",
+		"openapi.json",
+		"openapi-merge.json",
+		"graph.json",
 	];
 	await Promise.all([
 		mkdir(join(directory, ".tasks")),
@@ -162,6 +175,7 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 		writeFile(join(directory, "ignored", "excluded.txt"), "excluded"),
 		writeFile(join(directory, "ignored", "selected.txt"), "selected"),
 		...generatedDirectories.map((path) => writeFile(join(directory, path, "generated.txt"), "generated")),
+		...generatedFiles.map((path) => writeFile(join(directory, path), "generated")),
 		writeFile(join(directory, "package-lock.json"), "{}\n"),
 		writeFile(join(directory, "PRELOAD.md"), "generated"),
 		writeFile(join(directory, "TREE.txt"), "generated"),
