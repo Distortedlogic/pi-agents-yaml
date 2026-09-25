@@ -79,6 +79,15 @@ function references(value: unknown): readonly string[] {
 
 export const MAX_AGENTS_EXTENDS_DEPTH = 3;
 
+function hasErrorCode(error: unknown, code: string): boolean {
+	let current: unknown = error;
+	while (current instanceof Error) {
+		if ((current as Error & { code?: unknown }).code === code) return true;
+		current = current.cause;
+	}
+	return false;
+}
+
 export async function resolveAgentsSources<TSchemaType extends TSchema, TResolved = Static<TSchemaType>>(
 	options: ResolveAgentsSourcesOptions<TSchemaType, TResolved>,
 ): Promise<ResolvedAgentsSources<TResolved>> {
@@ -119,14 +128,22 @@ export async function resolveAgentsSources<TSchemaType extends TSchema, TResolve
 		}
 		if (completed.has(currentRoot)) return;
 		activePath.add(currentRoot);
-		const loadedSection =
-			currentRoot === rootPath && options.rootValue !== undefined
-				? parseAgentsSection(
-						{ sourcePath, document: { [options.sectionName]: options.rootValue } },
-						options.sectionName,
-						options.schema,
-					)
-				: await loadAgentsSection(sourcePath, options.sectionName, options.schema, { signal: options.signal });
+		let loadedSection: LoadedAgentsSection<Static<TSchemaType>> | undefined;
+		if (currentRoot === rootPath && options.rootValue !== undefined) {
+			loadedSection = parseAgentsSection(
+				{ sourcePath, document: { [options.sectionName]: options.rootValue } },
+				options.sectionName,
+				options.schema,
+			);
+		} else {
+			try {
+				loadedSection = await loadAgentsSection(sourcePath, options.sectionName, options.schema, {
+					signal: options.signal,
+				});
+			} catch (error) {
+				if (depth !== 0 || !hasErrorCode(error, "ENOENT")) throw error;
+			}
+		}
 		const section = options.resolveSection
 			? await options.resolveSection(loadedSection, {
 					depth,
