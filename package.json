@@ -40,12 +40,12 @@
 		"yaml": "2.9.1"
 	},
 	"peerDependencies": {
-		"@earendil-works/pi-coding-agent": "0.87.0"
+		"@earendil-works/pi-coding-agent": "0.87.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.14",
-		"@earendil-works/pi-coding-agent": "0.87.0",
-		"@types/node": "22.20.3",
+		"@earendil-works/pi-coding-agent": "0.87.1",
+		"@types/node": "22.20.4",
 		"tsx": "4.23.15",
 		"typescript": "7.0.2"
 	}
