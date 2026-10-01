@@ -137,13 +137,16 @@ test("applies complete context and tree defaults", async (t) => {
 });
 
 test("selects the full Git-visible tree before configured excludes", async (t) => {
-	for (const path of ["**/.tasks/**", "PRELOAD.md"]) {
+	for (const path of ["**/.dockerignore", "**/.gitignore", "**/.pi/**", "**/.tasks/**", "**/PRELOAD.md"]) {
 		assert.equal(DEFAULT_TREE_EXCLUDES.includes(path), true);
 	}
-	assert.equal(DEFAULT_TREE_EXCLUDES.includes("**/package-lock.json"), false);
+	assert.equal(DEFAULT_TREE_EXCLUDES.includes("**/*-lock.*"), true);
 
 	const directory = await temporaryDirectory(t);
 	const generatedDirectories = [
+		".direnv",
+		".hg",
+		".jj",
 		".nx",
 		"node_modules",
 		"dist",
@@ -154,12 +157,26 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 		"test-output",
 		"__pycache__",
 		".next",
+		".svn",
 		".terraform",
 		".venv",
 		"coverage",
 		"playwright-report",
 	];
 	const generatedFiles = [
+		".dockerignore",
+		".DS_Store",
+		".env",
+		".env.local",
+		"AGENTS.md",
+		"CLAUDE.md",
+		"Thumbs.db",
+		"debug.log",
+		"draft.swo",
+		"draft.swp",
+		"draft~",
+		"nested/PRELOAD.md",
+		"nested/TREE.txt",
 		"tsconfig.tsbuildinfo",
 		"coverage.json",
 		"junit.xml",
@@ -175,7 +192,7 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 		mkdir(join(directory, "nested", ".tasks"), { recursive: true }),
 	]);
 	await Promise.all([
-		writeFile(join(directory, "AGENTS.yml"), "pi-tree:\n  excludes: [.gitignore, blocked.txt, ignored/excluded.txt]\n"),
+		writeFile(join(directory, "AGENTS.yml"), "pi-tree:\n  excludes: [blocked.txt, ignored/excluded.txt]\n"),
 		writeFile(join(directory, ".gitignore"), "ignored/\n"),
 		writeFile(join(directory, "visible.txt"), "visible"),
 		writeFile(join(directory, "blocked.txt"), "blocked"),
@@ -194,7 +211,7 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 	const tree = await resolveFileSelection({ resolution: await resolvePiTreeSources({ rootPath: directory }) });
 	assert.deepEqual(
 		tree.map((file) => file.displayPath),
-		["package-lock.json", "visible.txt"],
+		["visible.txt"],
 	);
 
 	await writeFile(join(directory, "AGENTS.yml"), "pi-tree: {}\n");
@@ -203,7 +220,7 @@ test("selects the full Git-visible tree before configured excludes", async (t) =
 	});
 	assert.deepEqual(
 		defaultTree.map((file) => file.displayPath),
-		[".gitignore", "blocked.txt", "package-lock.json", "visible.txt"],
+		["blocked.txt", "visible.txt"],
 	);
 });
 

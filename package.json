@@ -14,7 +14,10 @@
 	"engines": {
 		"node": ">=22.19.0"
 	},
-	"exports": "./src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./file-selection": "./src/file-selection.ts"
+	},
 	"files": [
 		"presets",
 		"schemas",
