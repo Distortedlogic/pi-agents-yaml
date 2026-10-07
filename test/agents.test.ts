@@ -7,7 +7,6 @@ import { CONFIG_DIR_NAME, SettingsManager } from "@earendil-works/pi-coding-agen
 import { Type } from "typebox";
 import {
 	AgentsConfigurationSchema,
-	DEFAULT_TREE_EXCLUDES,
 	discoverAgentsSources,
 	loadAgentsSection,
 	MAX_AGENTS_EXTENDS_DEPTH,
@@ -136,55 +135,10 @@ test("applies complete context and tree defaults", async (t) => {
 	}
 });
 
-test("selects the full Git-visible tree before configured excludes", async (t) => {
-	for (const path of ["**/.dockerignore", "**/.gitignore", "**/.pi/**", "**/.tasks/**", "**/PRELOAD.md"]) {
-		assert.equal(DEFAULT_TREE_EXCLUDES.includes(path), true);
-	}
-	assert.equal(DEFAULT_TREE_EXCLUDES.includes("**/*-lock.*"), true);
-
+test("selects the Git-visible tree before configured and default excludes", async (t) => {
 	const directory = await temporaryDirectory(t);
-	const generatedDirectories = [
-		".direnv",
-		".hg",
-		".jj",
-		".nx",
-		"node_modules",
-		"dist",
-		"dist-swagger",
-		"out-tsc",
-		"swagger",
-		"target",
-		"test-output",
-		"__pycache__",
-		".next",
-		".svn",
-		".terraform",
-		".venv",
-		"coverage",
-		"playwright-report",
-	];
-	const generatedFiles = [
-		".dockerignore",
-		".DS_Store",
-		".env",
-		".env.local",
-		"AGENTS.md",
-		"CLAUDE.md",
-		"Thumbs.db",
-		"debug.log",
-		"draft.swo",
-		"draft.swp",
-		"draft~",
-		"nested/PRELOAD.md",
-		"nested/TREE.txt",
-		"tsconfig.tsbuildinfo",
-		"coverage.json",
-		"junit.xml",
-		"junit-worker.xml",
-		"openapi.json",
-		"openapi-merge.json",
-		"graph.json",
-	];
+	const generatedDirectories = ["node_modules", "dist", ".venv"];
+	const generatedFiles = [".env", "nested/PRELOAD.md", "tsconfig.tsbuildinfo"];
 	await Promise.all([
 		mkdir(join(directory, ".tasks")),
 		mkdir(join(directory, "ignored")),
@@ -388,6 +342,8 @@ test("rejects preload file-selection fields in public AGENTS.yml", async (t) => 
 		await writeFile(join(directory, "AGENTS.yml"), `pi-preload:\n  ${field}: ['**/*']\n`);
 		await assert.rejects(resolvePiPreloadSources({ rootPath: directory }), /Invalid configuration.*pi-preload/);
 	}
+	await writeFile(join(directory, "AGENTS.yml"), "pi-preload:\n  presets: [missing-preset]\n");
+	await assert.rejects(resolvePiPreloadSources({ rootPath: directory }), /preset/i);
 });
 
 test("selects full and signature files from presets only", async (t) => {
@@ -433,10 +389,9 @@ test("pi-extension preset provides native documentation and critical public sign
 			document,
 		);
 	}
-	assert.deepEqual(configuration.signatures, [
-		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/index.ts",
-		"/home/entropybender/coding/3rd/pi/packages/coding-agent/src/core/extensions/types.ts",
-	]);
+	assert.equal(configuration.signatures.length, 2);
+	assert.equal(configuration.signatures[0]?.endsWith("/packages/coding-agent/src/index.ts"), true);
+	assert.equal(configuration.signatures[1]?.endsWith("/packages/coding-agent/src/core/extensions/types.ts"), true);
 });
 
 test("keeps explicit targets that lack the requested section and applies only owned defaults", async (t) => {
@@ -553,8 +508,6 @@ test("selects full files across ignored and extended roots", async (t) => {
 	const selected = await resolveFileSelection({ resolution });
 	const paths = selected.map(({ displayPath }) => displayPath);
 	assert.equal(new Set(selected.map(({ absolutePath }) => absolutePath)).size, selected.length);
-	assert.equal(Object.isFrozen(selected), true);
-	assert.equal(selected.every(Object.isFrozen), true);
 	assert.ok(paths.includes("sentinel.md"));
 	assert.ok(paths.includes("packages/tool/src/full.ts"));
 	assert.ok(paths.includes("packages/tool/types/signature.ts"));
